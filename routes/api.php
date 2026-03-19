@@ -43,6 +43,7 @@ use App\Http\Controllers\Api\V1\Benefits\AffiliateController as V1AffiliateContr
 use App\Http\Controllers\Api\V1\Benefits\ClubPointController as V1ClubPointController;
 use App\Http\Controllers\Api\V1\Benefits\RefundController as V1RefundController;
 use App\Http\Controllers\Api\V1\Benefits\WalletController as V1WalletController;
+use App\Http\Controllers\Api\V1\Payments\PaymentInitializationController as V1PaymentInitializationController;
 use App\Http\Controllers\Api\V1\Shops\ShopController as V1ShopController;
 use App\Http\Controllers\Api\V1\Shops\ShopRegistrationController as V1ShopRegistrationController;
 use App\Http\Controllers\Api\V1\User\UserInfoController as V1UserInfoController;
@@ -68,7 +69,6 @@ use App\Http\Controllers\Api\TranslationController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WishlistController;
-use App\Http\Controllers\Payment\PaymentController;
 
 Route::group(['prefix' => 'v1', 'as' => 'api.'], function () {
 
@@ -76,7 +76,7 @@ Route::group(['prefix' => 'v1', 'as' => 'api.'], function () {
     Route::get('locale/{lang}', V1LocaleController::class);
 
     Route::group(['prefix' => 'payment', 'middleware' => 'auth:api'], function () {
-        Route::any('/{gateway}/pay', [PaymentController::class, 'payment_initialize']);
+        Route::any('/{gateway}/pay', V1PaymentInitializationController::class);
     });
 
     Route::group(['prefix' => 'auth'], function () {

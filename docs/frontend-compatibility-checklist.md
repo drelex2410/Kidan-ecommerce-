@@ -56,8 +56,43 @@
 | Wallet / club points / affiliate | `GET/POST /api/v1/user/*` affiliate/wallet/earning | Implemented | `GET user/wallet/history`, `GET user/earning/history`, `POST user/convert-point-into-wallet`, and the active affiliate endpoints are rebuilt in V1 benefits. Club point conversion preserves the legacy raw `3` unpaid-order signal used by the SPA. Wallet recharge continues to hand off through `payment/{gateway}/pay`; the stale `user/wallet/recharge` route now returns an explicit non-success response instead of silently breaking. |
 | Shop public endpoints | `GET /api/v1/shop/*`, `GET /api/v1/all-shops`, `POST /api/v1/shop/register` | Implemented | Rebuild covers `all-shops`, `shop/{slug}`, `shop/{slug}/home`, `shop/{slug}/coupons`, `shop/{slug}/products`, and the active SPA `shop/register` flow with storefront-compatible payloads and visibility rules (`published`, `approval`, `verification_status`) |
 | Delivery endpoints | `GET/POST /api/v1/delivery-boy/*` | Implemented | Rebuild covers dashboard, assigned/pending/picked-up/on-the-way/completed/cancelled lists, collections/earnings ledgers, cancel request, and status transitions with bearer-token auth and delivery-boy role enforcement |
-| Payment initialize | `POST /api/v1/payment/{gateway}/pay` | Pending | Phase 9 |
-| Payment callbacks | Web callback routes | Pending | Phase 9 |
+| Payment initialize | `POST /api/v1/payment/{gateway}/pay` | Implemented | Phase 9 rebuild now validates ownership/payable state, returns explicit JSON for API callers, and keeps online handoff metadata aligned with the existing SPA contract |
+| Web payment handoff | `POST /payment/{gateway}/pay` | Implemented | Phase 9 rebuild preserves the browser-form gateway handoff used by checkout, wallet recharge, and re-payment dialogs while routing through a new payment initialization service |
+| Payment callbacks | Web callback routes | Implemented | Existing gateway callback/return paths now reconcile through an idempotent Phase 9 callback service; Stripe/PayPal/Paystack/Flutterwave/etc. continue to use their legacy public route names |
+
+## Final Phase 10 Audit
+
+### Fully covered by rebuilt paths
+
+- SPA bootstrap and locale
+- Auth and current-user hydration
+- Catalog, product detail, and browse surfaces
+- Checkout, order placement, and payment continuation contract
+- CMS pages, home sections, and journal/blog
+- Account area, orders, invoices, downloads, wishlist, follows, addresses, notifications
+- Refunds, wallet history, club points, affiliate user flows
+- Public shops and delivery-boy surfaces
+- Payment initialization, callbacks, and idempotent reconciliation
+
+### Intentionally legacy-bridged
+
+- `GET /api/v1/auth/logout` remains as a temporary alias while the SPA still calls it in a few places
+- order cancel and several address actions still preserve legacy GET path shapes because the SPA depends on them directly
+- public payment callback route names remain legacy because external gateways and the current frontend handoff already depend on those exact paths
+- provider-specific payment controllers still exist as gateway bridges, but shared initialization and reconciliation now go through the rebuilt Phase 9 services
+
+### Unused or not rebuilt because not required by the active SPA
+
+- seller package payment flows
+- customer package payment flows
+- broad legacy admin surfaces
+- legacy API controller namespace endpoints that the active SPA no longer calls directly
+
+### Known compatibility risks still worth monitoring
+
+- several online gateways remain configuration-sensitive and will fail explicitly when disabled or missing credentials
+- admin and addon route files still contain legacy code, but optional bridges are now guarded where safe to keep tooling from failing unnecessarily
+- the repository still contains legacy controller namespaces for historical reference and provider compatibility, even though the SPA-facing contract is rebuilt under the V1/API-first layer
 
 ## Assumptions
 
@@ -73,6 +108,10 @@
 - Delivery-boy endpoints resolve the acting user from the bearer token and require `user_type = delivery_boy`; state transitions are limited to `pending|confirmed -> picked_up -> on_the_way -> delivered`.
 - Coupon validation preserves the frontend-facing `coupon_details` contract while normalizing expiry, prior-usage, and applicability checks inside the new service layer.
 - Stock is deducted at successful order placement time, matching the current checkout contract; payment callbacks remain a later phase concern.
+- Phase 9 preserves the storefront’s current split payment contract: browser form POSTs to `/payment/{gateway}/pay` for online handoff, while the API alias at `/api/v1/payment/{gateway}/pay` returns explicit JSON and is primarily used by offline wallet/re-payment flows.
+- Offline manual payment handling remains pending/approval-based: cart checkout stays non-redirecting from Phase 4, while Phase 9 now also records pending wallet recharge and repayment submissions without falsely marking them paid.
+- Callback idempotency is enforced through persisted `payments` and `payment_transactions` records, so duplicate success callbacks will not double-credit wallets or re-mark orders.
+- The current rebuild keeps the legacy gateway public route names for frontend/provider continuity, but unsupported or disabled gateways now fail explicitly at initialization instead of falling through hidden legacy behavior.
 - Page-builder payloads continue to use the existing section-based contract, but Phase 5 now resolves media defensively so null upload IDs return `null` instead of forcing upload lookups.
 - Home content remains section-sliced at `setting/home/{section}` because that is the exact surface the active SPA calls today; the rebuild normalizes the internals without collapsing those endpoints into one generic CMS blob.
 - Journal/blog payloads preserve the richer frontend journal structure, including hero posts, mixed editorial sections, and video cards when the request is not filtered by category or search.

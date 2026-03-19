@@ -1,6 +1,5 @@
 <?php
 
-use App\Addons\MultiVendor\Http\Controllers\MultiVendorController;
 use App\Http\Controllers\AddonController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AizUploadController;
@@ -360,4 +359,6 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'admin']], function 
 Route::get('/authorizenet/cardtype', [AuthorizenetPaymentController::class, 'cardType'])->name('authorizenet.cardtype');
 Route::get('/authorizenet/check', [AuthorizenetPaymentController::class, 'check']);
 
-Route::get('/addons/multivendor', [MultiVendorController::class, 'helloFromMultiVendor']);
+if (class_exists(\App\Addons\MultiVendor\Http\Controllers\MultiVendorController::class)) {
+    Route::get('/addons/multivendor', [\App\Addons\MultiVendor\Http\Controllers\MultiVendorController::class, 'helloFromMultiVendor']);
+}

@@ -4,6 +4,7 @@ use App\Http\Controllers\AddressController;
 use App\Http\Controllers\AizUploadController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\SpaController;
+use App\Http\Controllers\Web\Payments\PaymentInitializationController as WebPaymentInitializationController;
 use App\Http\Controllers\Payment\FlutterwavePaymentController;
 use App\Http\Controllers\Payment\MercadopagoPaymentController;
 use App\Http\Controllers\Payment\MyfatoorahPaymentController;
@@ -17,6 +18,7 @@ use App\Http\Controllers\Payment\PhonepePaymentController;
 use App\Http\Controllers\Payment\RazorpayPaymentController;
 use App\Http\Controllers\Payment\SSLCommerzPaymentController;
 use App\Http\Controllers\Payment\StripePaymentController;
+use App\Http\Controllers\Payment\IyzicoPaymentController;
 use App\Http\Controllers\SSLCommerz;
 
 /*
@@ -34,7 +36,7 @@ use App\Http\Controllers\SSLCommerz;
 
 Route::group(['prefix' => 'payment'], function () {
 
-    Route::any('/{gateway}/pay', [PaymentController::class, 'payment_initialize']);
+    Route::any('/{gateway}/pay', WebPaymentInitializationController::class);
 
     // stripe
     Route::any('/stripe/create-session', [StripePaymentController::class, 'create_checkout_session'])->name('stripe.get_token');
@@ -97,7 +99,7 @@ Route::group(['prefix' => 'payment'], function () {
     //payhere <ends>
 
     //Iyzico
-    Route::any('/iyzico/payment/callback/{payment_type}/{amount?}/{payment_method?}/{combined_order_id?}/{customer_package_id?}/{seller_package_id?}', [IyzicoController::class, 'callback'])->name('iyzico.callback');
+    Route::any('/iyzico/payment/callback/{payment_type}/{amount?}/{payment_method?}/{combined_order_id?}/{customer_package_id?}/{seller_package_id?}', [IyzicoPaymentController::class, 'callback'])->name('iyzico.callback');
 });
 
 Route::any('/social-login/redirect/{provider}', [LoginController::class, 'redirectToProvider'])->name('social.login');

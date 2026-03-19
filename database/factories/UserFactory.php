@@ -37,4 +37,26 @@ class UserFactory extends Factory
             'email_verified_at' => null,
         ]);
     }
+
+    public function customer()
+    {
+        return $this->state(fn (array $attributes) => [
+            'user_type' => 'customer',
+            'balance' => 0,
+        ]);
+    }
+
+    public function seller()
+    {
+        return $this->state(fn (array $attributes) => [
+            'user_type' => 'seller',
+        ]);
+    }
+
+    public function deliveryBoy()
+    {
+        return $this->state(fn (array $attributes) => [
+            'user_type' => 'delivery_boy',
+        ]);
+    }
 }

@@ -14,6 +14,10 @@ return new class extends Migration
      */
     public function up()
     {
+        if (Schema::hasTable('pickup_points')) {
+            return;
+        }
+
         Schema::create('pickup_points', function (Blueprint $table) {
             $table->id();
             $table->bigInteger('user_id')->foreign(User::class);

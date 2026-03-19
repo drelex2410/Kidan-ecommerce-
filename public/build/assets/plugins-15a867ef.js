@@ -1,0 +1,1 @@
+import r from"./helpers-f87fe9f0.js";function a(e){e.config.globalProperties.$helpers=r,e.config.globalProperties.imageFallback=function(l,o="square"){l.target.src=r.imagePlaceholder(o)},e.helpers=r}export{a as default};

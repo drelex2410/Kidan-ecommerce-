@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Kidan badge">
+  <circle cx="80" cy="80" r="80" fill="#000000"/>
+  <path d="M48 40h12v80H48z" fill="#ffffff"/>
+  <path d="M66 40h12v38l30-38h15L92 78l34 42h-16L78 80v40H66z" fill="#ffffff"/>
+  <path d="M36 54h10l22 23-22 29H34l23-29z" fill="#ffffff"/>
+  <path d="M112 40h12v80h-12z" fill="#ffffff"/>
+</svg>

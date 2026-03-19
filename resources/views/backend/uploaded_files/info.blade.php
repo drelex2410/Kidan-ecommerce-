@@ -1,0 +1,28 @@
+<div >
+	<div class="form-group">
+		<label>{{ translate('File Name') }}</label>
+		<input type="text" class="form-control" value="{{ $file->display_name.'.'.$file->extension }}" disabled>
+	</div>
+	<div class="form-group">
+		<label>{{ translate('File Type') }}</label>
+		<input type="text" class="form-control" value="{{ $file->type }}" disabled>
+	</div>
+	<div class="form-group">
+		<label>{{ translate('File Size') }}</label>
+		<input type="text" class="form-control" value="{{ formatBytes($file->file_size) }}" disabled>
+	</div>
+	<div class="form-group">
+		<label>{{ translate('Uploaded By') }}</label>
+		<input type="text" class="form-control" value="{{ optional($file->user)->name }}" disabled>
+	</div>
+	<div class="form-group">
+		<label>{{ translate('Uploaded At') }}</label>
+		<input type="text" class="form-control" value="{{ $file->created_at }}" disabled>
+	</div>
+	<div class="form-group text-center">
+		@php
+			$file_name = $file->display_name;
+		@endphp
+		<a class="btn btn-secondary" href="{{ $file->download_url }}" target="_blank" download="{{ $file_name }}.{{ $file->extension }}">{{ translate('Download') }}</a>
+	</div>
+</div>

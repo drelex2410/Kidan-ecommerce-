@@ -1,0 +1,246 @@
+/* ===================================
+   GLOBAL STYLES & CSS VARIABLES
+   =================================== */
+
+:root {
+  /* Light Mode (Default) */
+  --bg-color: #f5f1e8;
+  --text-color: #3d2817;
+  --accent-color: #5a2d1f;
+  --card-bg: #ffffff;
+  --nav-bg: rgba(61, 40, 23, 0.95);
+  --nav-text: #ffffff;
+  --border-color: #e0d5c7;
+  --hover-overlay: rgba(0, 0, 0, 0.1);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="dark"] {
+  /* Dark Mode */
+  --bg-color: #2a1810;
+  --text-color: #f5e6d3;
+  --accent-color: #d4a574;
+  --card-bg: #3d2817;
+  --nav-bg: rgba(20, 12, 8, 0.95);
+  --nav-text: #f5e6d3;
+  --border-color: #5a3d2f;
+  --hover-overlay: rgba(255, 255, 255, 0.1);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+/* ===================================
+   BASE RESET & TYPOGRAPHY
+   =================================== */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Playfair Display', 'Georgia', serif;
+  background-color: var(--bg-color);
+  color: var(--text-color);
+  line-height: 1.6;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+p {
+  font-family: 'Lato', 'Arial', sans-serif;
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+a {
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 0.2s ease;
+}
+
+a:hover {
+  opacity: 0.7;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  font-family: 'Lato', 'Arial', sans-serif;
+  transition: all 0.3s ease;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ===================================
+   UTILITY CLASSES
+   =================================== */
+
+.container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.section {
+  padding: 4rem 0;
+}
+
+.section-title {
+  font-size: 2.5rem;
+  text-align: center;
+  margin-bottom: 3rem;
+  font-weight: 300;
+  letter-spacing: 0.5px;
+}
+
+.btn-primary {
+  background-color: var(--accent-color);
+  color: var(--nav-text);
+  padding: 0.875rem 2rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: var(--text-color);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.card {
+  background-color: var(--card-bg);
+  border-radius: 0;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-4px);
+}
+
+/* ===================================
+   RESPONSIVE GRID SYSTEM
+   =================================== */
+
+.grid {
+  display: grid;
+  gap: 2rem;
+}
+
+.grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* ===================================
+   RESPONSIVE BREAKPOINTS
+   =================================== */
+
+@media (max-width: 1024px) {
+  .container {
+    padding: 0 1.5rem;
+  }
+
+  .section {
+    padding: 3rem 0;
+  }
+
+  .section-title {
+    font-size: 2rem;
+  }
+
+  .grid-4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .container {
+    padding: 0 1rem;
+  }
+
+  .section {
+    padding: 2rem 0;
+  }
+
+  .section-title {
+    font-size: 1.75rem;
+    margin-bottom: 2rem;
+  }
+
+  .grid-2,
+  .grid-3,
+  .grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  .btn-primary {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* ===================================
+   ANIMATIONS
+   =================================== */
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.6s ease-out;
+}
+
+/* ===================================
+   SCROLLBAR STYLING
+   =================================== */
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-color);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent-color);
+  border-radius: 5px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-color);
+}

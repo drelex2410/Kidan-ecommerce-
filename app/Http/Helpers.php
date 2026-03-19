@@ -784,9 +784,17 @@ if (!function_exists('getFileBaseURL')) {
 if (!function_exists('get_setting')) {
     function get_setting($key, $default = null)
     {
-        $settings = Cache::remember('settings', 86400, function () {
-            return Setting::all();
-        });
+        try {
+            if (!Schema::hasTable('settings')) {
+                return $default;
+            }
+
+            $settings = Cache::remember('settings', 86400, function () {
+                return Setting::all();
+            });
+        } catch (\Throwable $exception) {
+            return $default;
+        }
 
         $setting = $settings->where('type', $key)->first();
 

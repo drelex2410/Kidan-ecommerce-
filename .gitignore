@@ -6,3 +6,9 @@ storage/
 error_log
 *.log
 deployment/
+.phpunit.result.cache
+shop.sql
+temp/
+public/uploads/all/*.mp4
+public/uploads/all/*.mov
+public/uploads/all/*.webm

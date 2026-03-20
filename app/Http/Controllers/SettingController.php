@@ -7,7 +7,9 @@ use App\Http\Services\AdminShopService;
 use App\Models\Setting;
 use App\Models\User;
 use Artisan;
+use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class SettingController extends Controller
 {
@@ -73,7 +75,9 @@ class SettingController extends Controller
     public function payment_method_update(Request $request)
     {
         foreach ($request->types as $key => $type) {
-            $this->overWriteEnvFile($type, $request[$type]);
+            if (! $this->storeEnvironmentSetting($type, $request[$type])) {
+                return $this->settingsWriteErrorResponse();
+            }
         }
 
         $business_settings = Setting::where('type', $request->payment_method . '_sandbox')->first();
@@ -101,7 +105,9 @@ class SettingController extends Controller
     public function google_analytics_update(Request $request)
     {
         foreach ($request->types as $key => $type) {
-            $this->overWriteEnvFile($type, $request[$type]);
+            if (! $this->storeEnvironmentSetting($type, $request[$type])) {
+                return $this->settingsWriteErrorResponse();
+            }
         }
 
         $business_settings = Setting::where('type', 'google_analytics')->first();
@@ -123,7 +129,9 @@ class SettingController extends Controller
     public function google_recaptcha_update(Request $request)
     {
         foreach ($request->types as $key => $type) {
-            $this->overWriteEnvFile($type, $request[$type]);
+            if (! $this->storeEnvironmentSetting($type, $request[$type])) {
+                return $this->settingsWriteErrorResponse();
+            }
         }
 
         $business_settings = Setting::where('type', 'google_recaptcha')->first();
@@ -151,7 +159,9 @@ class SettingController extends Controller
     public function facebook_chat_update(Request $request)
     {
         foreach ($request->types as $key => $type) {
-            $this->overWriteEnvFile($type, $request[$type]);
+            if (! $this->storeEnvironmentSetting($type, $request[$type])) {
+                return $this->settingsWriteErrorResponse();
+            }
         }
 
         $business_settings = Setting::where('type', 'facebook_chat')->first();
@@ -173,7 +183,9 @@ class SettingController extends Controller
     public function facebook_pixel_update(Request $request)
     {
         foreach ($request->types as $key => $type) {
-            $this->overWriteEnvFile($type, $request[$type]);
+            if (! $this->storeEnvironmentSetting($type, $request[$type])) {
+                return $this->settingsWriteErrorResponse();
+            }
         }
 
         $business_settings = Setting::where('type', 'facebook_pixel')->first();
@@ -200,7 +212,9 @@ class SettingController extends Controller
     public function env_key_update(Request $request)
     {
         foreach ($request->types as $key => $type) {
-            $this->overWriteEnvFile($type, $request[$type]);
+            if (! $this->storeEnvironmentSetting($type, $request[$type])) {
+                return $this->settingsWriteErrorResponse();
+            }
         }
 
         flash(translate("Settings updated successfully"))->success();
@@ -215,21 +229,7 @@ class SettingController extends Controller
      */
     public function overWriteEnvFile($type, $val)
     {
-        if (env('DEMO_MODE') != 'On') {
-            $path = base_path('.env');
-            if (file_exists($path)) {
-                $val = '"' . trim($val) . '"';
-                if (is_numeric(strpos(file_get_contents($path), $type)) && strpos(file_get_contents($path), $type) >= 0) {
-                    file_put_contents($path, str_replace(
-                        $type . '="' . env($type) . '"',
-                        $type . '=' . $val,
-                        file_get_contents($path)
-                    ));
-                } else {
-                    file_put_contents($path, file_get_contents($path) . "\r\n" . $type . '=' . $val);
-                }
-            }
-        }
+        return $this->storeEnvironmentSetting($type, $val);
     }
 
     public function initSetting()
@@ -348,23 +348,108 @@ class SettingController extends Controller
     public function updateActivationSettingsInEnv($request)
     {
         if ($request->type == 'FORCE_HTTPS' && $request->value == '1') {
-            $this->overWriteEnvFile($request->type, 'On');
+            if (! $this->storeEnvironmentSetting($request->type, 'On')) {
+                return 'env_not_writable';
+            }
 
             if (strpos(env('APP_URL'), 'http:') !== FALSE) {
-                $this->overWriteEnvFile('APP_URL', str_replace("http:", "https:", env('APP_URL')));
+                if (! $this->storeEnvironmentSetting('APP_URL', str_replace("http:", "https:", env('APP_URL')))) {
+                    return 'env_not_writable';
+                }
             }
         } elseif ($request->type == 'FORCE_HTTPS' && $request->value == '0') {
-            $this->overWriteEnvFile($request->type, 'Off');
+            if (! $this->storeEnvironmentSetting($request->type, 'Off')) {
+                return 'env_not_writable';
+            }
             if (strpos(env('APP_URL'), 'https:') !== FALSE) {
-                $this->overWriteEnvFile('APP_URL', str_replace("https:", "http:", env('APP_URL')));
+                if (! $this->storeEnvironmentSetting('APP_URL', str_replace("https:", "http:", env('APP_URL')))) {
+                    return 'env_not_writable';
+                }
             }
         } elseif ($request->type == 'FILESYSTEM_DRIVER' && $request->value == '1') {
-            $this->overWriteEnvFile($request->type, 's3');
+            if (! $this->storeEnvironmentSetting($request->type, 's3')) {
+                return 'env_not_writable';
+            }
         } elseif ($request->type == 'FILESYSTEM_DRIVER' && $request->value == '0') {
-            $this->overWriteEnvFile($request->type, 'local');
+            if (! $this->storeEnvironmentSetting($request->type, 'local')) {
+                return 'env_not_writable';
+            }
         }
 
         return '1';
+    }
+
+    protected function storeEnvironmentSetting(string $type, mixed $value): bool
+    {
+        if (env('DEMO_MODE') === 'On') {
+            return true;
+        }
+
+        $path = base_path('.env');
+        if (! file_exists($path) || ! is_writable($path)) {
+            report(new \RuntimeException(".env is not writable for setting [{$type}]"));
+
+            return false;
+        }
+
+        try {
+            $contents = file_get_contents($path);
+            if ($contents === false) {
+                throw new FileNotFoundException("Unable to read [.env] for setting [{$type}].");
+            }
+
+            $serializedValue = $this->serializeEnvironmentValue($value);
+            $pattern = "/^" . preg_quote($type, '/') . "=.*$/m";
+            $replacement = $type . '=' . $serializedValue;
+
+            if (preg_match($pattern, $contents) === 1) {
+                $updatedContents = preg_replace($pattern, $replacement, $contents, 1);
+            } else {
+                $updatedContents = rtrim($contents) . PHP_EOL . $replacement . PHP_EOL;
+            }
+
+            if ($updatedContents === null || file_put_contents($path, $updatedContents) === false) {
+                throw new \RuntimeException("Unable to persist [.env] change for setting [{$type}].");
+            }
+
+            return true;
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            return false;
+        }
+    }
+
+    protected function serializeEnvironmentValue(mixed $value): string
+    {
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+
+        if (is_array($value)) {
+            $value = json_encode($value);
+        }
+
+        $value = trim((string) $value);
+
+        if ($value === '') {
+            return '""';
+        }
+
+        if (preg_match('/\s/', $value) === 1 || Str::contains($value, ['#', '"'])) {
+            return '"' . addcslashes($value, "\\\"") . '"';
+        }
+
+        return $value;
+    }
+
+    protected function settingsWriteErrorResponse()
+    {
+        flash(translate('This setting cannot be changed from the web UI until the server grants controlled write access to the environment configuration.'))->error();
+
+        return back()->withErrors([
+            'settings' => translate('Environment configuration is not writable. Update the server configuration and retry.'),
+        ]);
     }
 
     public function shipping_configuration(Request $request)

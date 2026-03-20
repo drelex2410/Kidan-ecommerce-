@@ -499,7 +499,9 @@ if (!function_exists('filter_shops')) {
 if (!function_exists('filter_products')) {
     function filter_products($product_query)
     {
-        return $product_query->where('published', 1);
+        return method_exists($product_query->getModel(), 'scopeFrontendVisible')
+            ? $product_query->frontendVisible()
+            : $product_query->where('published', 1);
     }
 }
 if (!function_exists('published_shops_ids')) {

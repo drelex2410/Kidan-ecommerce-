@@ -227,15 +227,14 @@
           <v-avatar color="grey lighten-2">
             <i class="las la-user la-2x"></i>
           </v-avatar>
-          <div class="ms-3">
+          <div class="ms-3 mobile-auth-links">
             <router-link
               :to="{ name: 'Login' }"
-              class="text-reset opacity-80 fw-500"
+              class="mobile-auth-link mobile-auth-link-secondary"
             >{{ $t("login") }}</router-link>
-            <span class="mx-1 opacity-60">{{ $t("or") }}</span>
             <router-link
               :to="{ name: 'Registration' }"
-              class="text-reset opacity-80 fw-500"
+              class="mobile-auth-link mobile-auth-link-primary"
             >{{ $t("registration") }}</router-link>
           </div>
         </template>
@@ -676,5 +675,35 @@ a.d-inline-flex,
 }
 a.router-link-exact-active {
   color: var(--primary);
+}
+
+.mobile-auth-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.mobile-auth-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0.65rem 1rem;
+  border-radius: 999px;
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.mobile-auth-link-secondary {
+  color: #17120d !important;
+  background: #f2ede2;
+  border: 1px solid rgba(23, 18, 13, 0.12);
+}
+
+.mobile-auth-link-primary {
+  color: #fbf8f1 !important;
+  background: #17120d;
+  border: 1px solid #17120d;
 }
 </style>

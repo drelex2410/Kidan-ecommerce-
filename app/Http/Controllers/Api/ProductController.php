@@ -527,8 +527,8 @@ class ProductController extends Controller
             })
             ->filter();
 
-        return $directAttributeValues
-            ->merge($variationAttributeValues)
+        return collect($directAttributeValues->all())
+            ->merge($variationAttributeValues->all())
             ->unique(fn ($item) => $item['attribute_id'] . ':' . $item['value_id'])
             ->values();
     }

@@ -8,10 +8,18 @@ import { createI18n } from "vue-i18n";
 
 let shopSelectedLanguage = localStorage.getItem("shopSelectedLanguage");
 
+const humanizeTranslationKey = (key = "") =>
+    String(key)
+        .replace(/[._]+/g, " ")
+        .replace(/-/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+
 const i18n = createI18n({
     locale: shopSelectedLanguage ?? "en",
-    fallbackLocale: shopSelectedLanguage ?? "en",
+    fallbackLocale: "en",
     silentTranslationWarn: true,
+    missing: (_locale, key) => humanizeTranslationKey(key),
 });
 const loadedLanguages = [];
 

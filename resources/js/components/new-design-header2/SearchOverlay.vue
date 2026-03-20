@@ -120,10 +120,10 @@
                       {{ product.name }}
                     </router-link>
                     <div class="product-price">
-                      <span v-if="product.stroked_price" class="original-price">
-                        {{ product.stroked_price }}
+                      <span v-if="product.base_price > product.base_discounted_price" class="original-price">
+                        {{ format_price(product.base_price) }}
                       </span>
-                      <span class="discounted-price">{{ product.main_price }}</span>
+                      <span class="discounted-price">{{ format_price(product.base_discounted_price) }}</span>
                     </div>
                   </div>
                 </li>
@@ -143,7 +143,7 @@
                 >
                   <i class="las la-tag suggestion-item-icon"></i>
                   <router-link
-                    :to="{ name: 'BrandProducts', params: { slug: brand.slug }}"
+                    :to="{ name: 'Brand', params: { brandId: brand.id } }"
                     class="suggestion-link"
                   >
                     {{ brand.name }}
@@ -223,23 +223,34 @@ export default {
     this.loadCategories();
   },
   methods: {
+    applySearchPayload(payload = {}) {
+      this.searchKeywords = payload.keywords || [];
+      this.searchCategories = payload.categories || [];
+      this.products = payload.products?.data || payload.products || [];
+      this.brands = payload.brands || [];
+      this.shops = payload.shops?.data || payload.shops || [];
+
+      const hasResults =
+        this.searchKeywords.length ||
+        this.searchCategories.length ||
+        this.products.length ||
+        this.brands.length ||
+        this.shops.length;
+
+      this.suggestionNotFound = !hasResults;
+    },
     async search() {
-      if (!this.searchQuery.trim()) return;
+      const keyword = this.searchQuery.trim();
+      if (!keyword) return;
       this.loadingSuggestion = true;
       this.showSuggestionContainer = true;
       this.suggestionNotFound = false;
       try {
-        const response = await this.call_api("get", "/search", {
-          params: { query: this.searchQuery }
-        });
-        if (response.data) {
-          this.searchKeywords = response.data.keywords || [];
-          this.searchCategories = response.data.categories || [];
-          this.products = response.data.products || [];
-          this.brands = response.data.brands || [];
-          this.shops = response.data.shops || [];
-          const hasResults = this.searchKeywords.length || this.searchCategories.length || this.products.length || this.brands.length || this.shops.length;
-          this.suggestionNotFound = !hasResults;
+        const response = await this.call_api("get", `search.ajax/${encodeURIComponent(keyword)}`);
+        if (response.data?.success) {
+          this.applySearchPayload(response.data);
+        } else {
+          this.applySearchPayload({});
         }
       } catch (error) {
         console.error('Search error:', error);
@@ -247,8 +258,8 @@ export default {
       } finally {
         this.loadingSuggestion = false;
       }
-      if (this.$route.params.keyword !== this.searchQuery) {
-        this.$router.push({ name: 'Search', params: { keyword: this.searchQuery } });
+      if (this.$route.params.keyword !== keyword) {
+        this.$router.push({ name: 'Search', params: { keyword } });
       }
     },
     handleKeyup() {
@@ -258,24 +269,20 @@ export default {
       }, 300);
     },
     async ajaxSearch() {
-      if (!this.searchQuery.trim()) {
+      const keyword = this.searchQuery.trim();
+      if (!keyword) {
         this.showSuggestionContainer = false;
+        this.applySearchPayload({});
         return;
       }
       this.loadingSuggestion = true;
       this.showSuggestionContainer = true;
       try {
-        const response = await this.call_api("get", "/search/suggestions", {
-          params: { query: this.searchQuery }
-        });
-        if (response.data) {
-          this.searchKeywords = response.data.keywords || [];
-          this.searchCategories = response.data.categories || [];
-          this.products = response.data.products || [];
-          this.brands = response.data.brands || [];
-          this.shops = response.data.shops || [];
-          const hasResults = this.searchKeywords.length || this.searchCategories.length || this.products.length || this.brands.length || this.shops.length;
-          this.suggestionNotFound = !hasResults;
+        const response = await this.call_api("get", `search.ajax/${encodeURIComponent(keyword)}`);
+        if (response.data?.success) {
+          this.applySearchPayload(response.data);
+        } else {
+          this.applySearchPayload({});
         }
       } catch (error) {
         console.error('Ajax search error:', error);

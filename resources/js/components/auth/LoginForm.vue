@@ -364,6 +364,8 @@ export default {
 }
 
 .login-btn {
+    background: #17120d !important;
+    color: #fbf8f1 !important;
     border-radius: 8px;
     text-transform: none;
     font-size: 16px;

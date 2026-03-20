@@ -62,7 +62,7 @@ class Upload extends Model
             return null;
         }
 
-        return route('uploads.file', ['upload' => $this->id]);
+        return route('uploads.file', ['upload' => $this->id], false);
     }
 
     public function getDownloadUrlAttribute()
@@ -71,7 +71,7 @@ class Upload extends Model
             return null;
         }
 
-        return route('uploads.file', ['upload' => $this->id, 'download' => 1]);
+        return route('uploads.file', ['upload' => $this->id, 'download' => 1], false);
     }
 
     public function getIsPreviewableAttribute()

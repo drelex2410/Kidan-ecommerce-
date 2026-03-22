@@ -13,8 +13,8 @@
           <div>Order Code : <span class="secondary--text">{{ order.code }}</span></div>
           <div
             class="font-italic"
-            v-if="order.user.email"
-          >{{ $t('a_copy_of_your_order_summary_has_been_sent_to') }} {{ order.user.email }}</div>
+            v-if="orderEmail"
+          >{{ $t('a_copy_of_your_order_summary_has_been_sent_to') }} {{ orderEmail }}</div>
         </div>
         <Summary :order-details="order" />
       </v-col>
@@ -33,11 +33,16 @@ export default {
   components: {
     Summary,
   },
+  computed: {
+    orderEmail() {
+      return this.order?.user?.email || this.order?.shipping_address?.email || null;
+    },
+  },
   methods: {
     async getDetails() {
       const res = await this.call_api(
         "get",
-        `user/order/${this.$route.query.orderCode}`
+        `checkout/order/${this.$route.query.orderCode}`
       );
       if (res.data.success) {
         this.order = res.data.data;

@@ -8,15 +8,25 @@ use App\Models\User;
 
 class ShippingService
 {
-    public function quote(User $user, int $addressId, int $shopCount = 1): array
+    public function quoteForAddress(?User $user, int $addressId, int $shopCount = 1): array
     {
         $address = Address::query()->find($addressId);
 
-        if (!$address || (int) $address->user_id !== (int) $user->id) {
+        if (!$user || !$address || (int) $address->user_id !== (int) $user->id) {
             throw new CheckoutException('The selected address is invalid.', 403);
         }
 
-        $zone = City::query()->with('zone')->find($address->city_id)?->zone;
+        return $this->quoteForCity((int) $address->city_id, $shopCount);
+    }
+
+    public function quoteForGuestCity(int $cityId, int $shopCount = 1): array
+    {
+        return $this->quoteForCity($cityId, $shopCount);
+    }
+
+    private function quoteForCity(int $cityId, int $shopCount = 1): array
+    {
+        $zone = City::query()->with('zone')->find($cityId)?->zone;
 
         if (!$zone) {
             return [

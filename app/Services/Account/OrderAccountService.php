@@ -43,6 +43,14 @@ class OrderAccountService
         return $order;
     }
 
+    public function findByCodeForGuest(string $orderCode): ?CombinedOrder
+    {
+        return CombinedOrder::query()
+            ->with(['user', 'orders.orderDetails.variation.product', 'orders.orderDetails.variation.combinations', 'orders.shop'])
+            ->where('code', $orderCode)
+            ->first();
+    }
+
     public function cancel(User $user, int $orderId): array
     {
         $order = Order::query()

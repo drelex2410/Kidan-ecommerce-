@@ -14,7 +14,7 @@ class CouponService
     ) {
     }
 
-    public function apply(User $user, string $couponCode, ?int $shopId, array $cartItemIds): array
+    public function apply(?User $user, ?string $tempUserId, string $couponCode, ?int $shopId, array $cartItemIds): array
     {
         $coupon = Coupon::query()->where('code', $couponCode)->first();
 
@@ -26,11 +26,11 @@ class CouponService
             throw new CheckoutException('The coupon is invalid for this shop.');
         }
 
-        if (CouponUsage::query()->where('user_id', $user->id)->where('coupon_id', $coupon->id)->exists()) {
+        if ($user && CouponUsage::query()->where('user_id', $user->id)->where('coupon_id', $coupon->id)->exists()) {
             throw new CheckoutException("You've already used the coupon.");
         }
 
-        $cartItems = $this->cartService->selectedItemsForUser($user, $cartItemIds);
+        $cartItems = $this->cartService->selectedItems($user, $tempUserId, $cartItemIds);
 
         if ($cartItems->isEmpty()) {
             throw new CheckoutException('Please select cart products before applying a coupon.');
@@ -118,7 +118,7 @@ class CouponService
         return $discount;
     }
 
-    public function resolveCheckoutCoupons(User $user, array $couponCodes, Collection $cartItems): array
+    public function resolveCheckoutCoupons(?User $user, ?string $tempUserId, array $couponCodes, Collection $cartItems): array
     {
         $resolved = [];
 
@@ -129,7 +129,7 @@ class CouponService
                 throw new CheckoutException('The coupon is invalid.');
             }
 
-            if (CouponUsage::query()->where('user_id', $user->id)->where('coupon_id', $coupon->id)->exists()) {
+            if ($user && CouponUsage::query()->where('user_id', $user->id)->where('coupon_id', $coupon->id)->exists()) {
                 throw new CheckoutException("You've already used the coupon.");
             }
 
@@ -139,7 +139,7 @@ class CouponService
                 throw new CheckoutException('The coupon is invalid for this shop.');
             }
 
-            $applyResult = $this->apply($user, $couponCode, $coupon->shop_id ? (int) $coupon->shop_id : null, $shopItems->pluck('id')->all());
+            $applyResult = $this->apply($user, $tempUserId, $couponCode, $coupon->shop_id ? (int) $coupon->shop_id : null, $shopItems->pluck('id')->all());
 
             $resolved[(int) $coupon->shop_id] = [
                 'coupon' => $coupon,

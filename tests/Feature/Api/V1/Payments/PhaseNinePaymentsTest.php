@@ -63,6 +63,34 @@ class PhaseNinePaymentsTest extends TestCase
         ]);
     }
 
+    public function test_guest_payment_initializer_returns_handoff_for_guest_order(): void
+    {
+        $combinedOrder = $this->createGuestCombinedOrder('unpaid');
+
+        $response = $this->postJson('/api/v1/payment/paystack/pay', [
+            'redirect_to' => '/checkout',
+            'payment_method' => 'paystack',
+            'payment_type' => 'cart_payment',
+            'user_id' => null,
+            'order_code' => $combinedOrder->code,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('go_to_payment', true)
+            ->assertJsonPath('payment_method', 'paystack')
+            ->assertJsonPath('order_code', $combinedOrder->code)
+            ->assertJsonPath('grand_total', 120);
+
+        $this->assertDatabaseHas('payments', [
+            'gateway' => 'paystack',
+            'payment_type' => 'cart_payment',
+            'order_code' => $combinedOrder->code,
+            'status' => 'initiated',
+            'user_id' => null,
+        ]);
+    }
+
     public function test_payment_initializer_rejects_unauthorized_order_owner(): void
     {
         $owner = $this->createUser(['email' => 'owner@example.com']);
@@ -282,7 +310,8 @@ class PhaseNinePaymentsTest extends TestCase
 
         Schema::create('combined_orders', function (Blueprint $table): void {
             $table->id();
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->unsignedBigInteger('guest_id')->nullable();
             $table->string('code');
             $table->decimal('grand_total', 12, 2)->default(0);
             $table->text('shipping_address')->nullable();
@@ -292,7 +321,7 @@ class PhaseNinePaymentsTest extends TestCase
 
         Schema::create('orders', function (Blueprint $table): void {
             $table->id();
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('user_id')->nullable();
             $table->unsignedBigInteger('shop_id')->default(1);
             $table->unsignedBigInteger('combined_order_id');
             $table->string('code')->nullable();
@@ -408,6 +437,32 @@ class PhaseNinePaymentsTest extends TestCase
 
         DB::table('orders')->insert([
             'user_id' => $user->id,
+            'shop_id' => 1,
+            'combined_order_id' => $combinedOrderId,
+            'code' => '1',
+            'grand_total' => 120,
+            'payment_status' => $paymentStatus,
+            'delivery_status' => 'order_placed',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return CombinedOrder::query()->findOrFail($combinedOrderId);
+    }
+
+    private function createGuestCombinedOrder(string $paymentStatus): CombinedOrder
+    {
+        $combinedOrderId = DB::table('combined_orders')->insertGetId([
+            'user_id' => null,
+            'guest_id' => 999001,
+            'code' => 'GUEST-' . random_int(1000, 9999),
+            'grand_total' => 120,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('orders')->insert([
+            'user_id' => null,
             'shop_id' => 1,
             'combined_order_id' => $combinedOrderId,
             'code' => '1',

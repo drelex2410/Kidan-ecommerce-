@@ -162,9 +162,9 @@ class CartService
         return $this->fetch($user, null);
     }
 
-    public function selectedItemsForUser(User $user, array $cartItemIds): Collection
+    public function selectedItems(?User $user, ?string $tempUserId, array $cartItemIds): Collection
     {
-        return $this->baseQuery($user, null)
+        return $this->baseQuery($user, $user ? null : $tempUserId)
             ->whereIn('id', $cartItemIds)
             ->get();
     }

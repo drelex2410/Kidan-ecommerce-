@@ -281,6 +281,23 @@ class PhaseFourCheckoutTest extends TestCase
             ->assertJsonPath('success', false);
     }
 
+    public function test_guest_shipping_quote_returns_zone_rates(): void
+    {
+        [$variation] = $this->seedCatalogForCheckout();
+        $this->seedCartLine(['temp_user_id' => 'guest-123', 'product_variation_id' => $variation->id]);
+        $guestLocation = $this->seedGuestLocation(1);
+
+        $response = $this->postJson('/api/v1/checkout/shipping-quote', [
+            'guest_city_id' => $guestLocation['city_id'],
+            'shop_count' => 1,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('standard_delivery_cost', 12.5)
+            ->assertJsonPath('express_delivery_cost', 20);
+    }
+
     public function test_order_store_success_creates_order_and_returns_payment_handoff_contract(): void
     {
         $user = $this->createUser(['email_verified_at' => now()]);
@@ -324,6 +341,41 @@ class PhaseFourCheckoutTest extends TestCase
         $this->assertDatabaseCount('combined_orders', 1);
         $this->assertDatabaseCount('orders', 1);
         $this->assertDatabaseCount('order_details', 1);
+        $this->assertDatabaseMissing('carts', ['id' => $cartId]);
+    }
+
+    public function test_guest_order_store_success_creates_guest_order_without_user_account(): void
+    {
+        [$variation] = $this->seedCatalogForCheckout();
+        $cartId = $this->seedCartLine(['temp_user_id' => 'guest-123', 'product_variation_id' => $variation->id]);
+        $guestLocation = $this->seedGuestLocation(1);
+
+        $response = $this->postJson('/api/v1/checkout/order/store', [
+            'temp_user_id' => 'guest-123',
+            'guest_name' => 'Guest Buyer',
+            'guest_email' => 'guest@example.com',
+            'guest_phone' => '08030000000',
+            'guest_address' => '12 Example Street',
+            'guest_country_id' => $guestLocation['country_id'],
+            'guest_state_id' => $guestLocation['state_id'],
+            'guest_city_id' => $guestLocation['city_id'],
+            'guest_postal_code' => '100001',
+            'payment_type' => 'cash_on_delivery',
+            'delivery_type' => 'standard',
+            'type_of_delivery' => 'home_delivery',
+            'pickup_point_id' => null,
+            'cart_item_ids' => [$cartId],
+            'coupon_codes' => [],
+            'transactionId' => null,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('go_to_payment', false)
+            ->assertJsonPath('payment_method', 'cash_on_delivery');
+
+        $this->assertDatabaseHas('combined_orders', ['user_id' => null]);
+        $this->assertDatabaseHas('orders', ['user_id' => null]);
         $this->assertDatabaseMissing('carts', ['id' => $cartId]);
     }
 
@@ -380,6 +432,8 @@ class PhaseFourCheckoutTest extends TestCase
             'shops',
             'addresses',
             'cities',
+            'states',
+            'countries',
             'zones',
             'currencies',
             'settings',
@@ -439,9 +493,25 @@ class PhaseFourCheckoutTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('countries', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name')->nullable();
+            $table->boolean('status')->default(true);
+            $table->timestamps();
+        });
+
+        Schema::create('states', function (Blueprint $table): void {
+            $table->id();
+            $table->unsignedBigInteger('country_id')->nullable();
+            $table->string('name')->nullable();
+            $table->boolean('status')->default(true);
+            $table->timestamps();
+        });
+
         Schema::create('cities', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('zone_id')->nullable();
+            $table->unsignedBigInteger('state_id')->nullable();
             $table->string('name')->nullable();
             $table->boolean('status')->default(true);
             $table->timestamps();
@@ -584,7 +654,8 @@ class PhaseFourCheckoutTest extends TestCase
 
         Schema::create('combined_orders', function (Blueprint $table): void {
             $table->id();
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('user_id')->nullable();
+            $table->unsignedBigInteger('guest_id')->nullable();
             $table->string('code');
             $table->text('shipping_address')->nullable();
             $table->text('billing_address')->nullable();
@@ -594,7 +665,7 @@ class PhaseFourCheckoutTest extends TestCase
 
         Schema::create('orders', function (Blueprint $table): void {
             $table->id();
-            $table->unsignedBigInteger('user_id');
+            $table->unsignedBigInteger('user_id')->nullable();
             $table->unsignedBigInteger('shop_id');
             $table->unsignedBigInteger('combined_order_id');
             $table->string('code')->nullable();
@@ -798,13 +869,8 @@ class PhaseFourCheckoutTest extends TestCase
 
     private function seedAddress(int $userId, int $zoneId, array $attributes = []): int
     {
-        $cityId = DB::table('cities')->insertGetId([
-            'zone_id' => $zoneId,
-            'name' => 'Lagos',
-            'status' => 1,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        $guestLocation = $this->seedGuestLocation($zoneId);
+        $cityId = $guestLocation['city_id'];
 
         if (!DB::table('zones')->where('id', $zoneId)->exists()) {
             DB::table('zones')->insert([
@@ -830,5 +896,48 @@ class PhaseFourCheckoutTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ], $attributes));
+    }
+
+    private function seedGuestLocation(int $zoneId): array
+    {
+        if (!DB::table('zones')->where('id', $zoneId)->exists()) {
+            DB::table('zones')->insert([
+                'id' => $zoneId,
+                'standard_delivery_cost' => 12.5,
+                'express_delivery_cost' => 20.0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        $countryId = DB::table('countries')->insertGetId([
+            'name' => 'Nigeria',
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $stateId = DB::table('states')->insertGetId([
+            'country_id' => $countryId,
+            'name' => 'Lagos',
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $cityId = DB::table('cities')->insertGetId([
+            'zone_id' => $zoneId,
+            'state_id' => $stateId,
+            'name' => 'Lagos',
+            'status' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        return [
+            'country_id' => $countryId,
+            'state_id' => $stateId,
+            'city_id' => $cityId,
+        ];
     }
 }

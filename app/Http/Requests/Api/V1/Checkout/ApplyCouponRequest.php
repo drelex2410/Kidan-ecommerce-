@@ -16,6 +16,7 @@ class ApplyCouponRequest extends FormRequest
         return [
             'coupon_code' => ['required', 'string', 'max:120'],
             'shop_id' => ['nullable', 'integer'],
+            'temp_user_id' => ['nullable', 'string', 'max:64'],
             'cart_item_ids' => ['required', 'array', 'min:1'],
             'cart_item_ids.*' => ['integer'],
         ];

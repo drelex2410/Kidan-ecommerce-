@@ -75,7 +75,7 @@ Route::group(['prefix' => 'v1', 'as' => 'api.'], function () {
     Route::get('bootstrap', V1BootstrapController::class);
     Route::get('locale/{lang}', V1LocaleController::class);
 
-    Route::group(['prefix' => 'payment', 'middleware' => 'auth:api'], function () {
+    Route::group(['prefix' => 'payment'], function () {
         Route::any('/{gateway}/pay', V1PaymentInitializationController::class);
     });
 
@@ -144,13 +144,15 @@ Route::group(['prefix' => 'v1', 'as' => 'api.'], function () {
         ->middleware(['auth:api', 'unbanned']);
 
 
-    Route::group(['middleware' => ['auth:api', 'unbanned']], function () {
+    Route::group(['prefix' => 'checkout'], function () {
+        Route::get('get-shipping-cost/{address_id}', V1ShippingQuoteController::class);
+        Route::post('shipping-quote', [V1ShippingQuoteController::class, 'guestQuote']);
+        Route::post('order/store', V1CheckoutOrderController::class);
+        Route::post('coupon/apply', V1CheckoutCouponController::class);
+        Route::get('order/{order_code}', [V1AccountOrderController::class, 'showPublic']);
+    });
 
-        Route::group(['prefix' => 'checkout'], function () {
-            Route::get('get-shipping-cost/{address_id}', V1ShippingQuoteController::class);
-            Route::post('order/store', V1CheckoutOrderController::class);
-            Route::post('coupon/apply', V1CheckoutCouponController::class);
-        });
+    Route::group(['middleware' => ['auth:api', 'unbanned']], function () {
 
         Route::group(['prefix' => 'user'], function () {
 

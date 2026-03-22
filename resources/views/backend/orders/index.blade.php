@@ -146,7 +146,13 @@
                                     @if ($order->user != null)
                                         {{ $order->user->name }}
                                     @else
-                                        Guest ({{ $order->guest_id }})
+                                        @php
+                                            $guestShippingAddress = json_decode($order->shipping_address);
+                                        @endphp
+                                        {{ $guestShippingAddress->name ?? 'Guest' }}
+                                        @if ($order->combined_order?->guest_id)
+                                            ({{ $order->combined_order->guest_id }})
+                                        @endif
                                     @endif
                                 </td>
                                 <td>

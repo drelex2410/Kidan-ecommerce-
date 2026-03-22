@@ -7,12 +7,12 @@ export default [
         path: "/checkout",
         component: NewCheckout,
         name: "Checkout",
-        meta: { requiresAuth: true },
+        meta: { requiresAuth: false },
     },
     {
         path: "/order-confirmed",
         component: OrderConfirmed,
         name: "OrderConfirmed",
-        meta: { requiresAuth: true },
+        meta: { requiresAuth: false },
     },
 ];

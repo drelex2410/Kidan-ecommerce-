@@ -3,11 +3,14 @@
 namespace App\Services\Checkout;
 
 use App\Models\Address;
+use App\Models\City;
 use App\Models\CombinedOrder;
 use App\Models\CouponUsage;
+use App\Models\Country;
 use App\Models\ManualPaymentMethod;
 use App\Models\Order;
 use App\Models\OrderDetail;
+use App\Models\State;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Http\UploadedFile;
@@ -25,9 +28,10 @@ class OrderService
     ) {
     }
 
-    public function place(User $user, array $payload, ?UploadedFile $receipt = null): array
+    public function place(?User $user, array $payload, ?UploadedFile $receipt = null): array
     {
-        $cartItems = $this->cartService->selectedItemsForUser($user, $payload['cart_item_ids']);
+        $tempUserId = $payload['temp_user_id'] ?? null;
+        $cartItems = $this->cartService->selectedItems($user, $tempUserId, $payload['cart_item_ids']);
 
         if ($cartItems->isEmpty()) {
             throw new CheckoutException('Your cart is empty. Please select a product.');
@@ -41,11 +45,21 @@ class OrderService
         $shippingAddress = null;
         $billingAddress = null;
         $shippingCostPerShop = 0.0;
+        $isGuestCheckout = $user === null;
+
+        if ($isGuestCheckout) {
+            $shippingAddress = $this->buildGuestAddressPayload($payload);
+            $billingAddress = $shippingAddress;
+        }
 
         if ($typeOfDelivery === 'home_delivery') {
-            $shippingAddress = $this->resolveAddress($user, $payload['shipping_address_id'], 'shipping');
-            $billingAddress = $this->resolveAddress($user, $payload['billing_address_id'], 'billing');
-            $shippingQuote = $this->shippingService->quote($user, $shippingAddress->id, $cartItems->groupBy(fn ($item) => $item->product->shop_id)->count());
+            if ($isGuestCheckout) {
+                $shippingQuote = $this->shippingService->quoteForGuestCity((int) $payload['guest_city_id'], $cartItems->groupBy(fn ($item) => $item->product->shop_id)->count());
+            } else {
+                $shippingAddress = $this->resolveAddress($user, $payload['shipping_address_id'], 'shipping');
+                $billingAddress = $this->resolveAddress($user, $payload['billing_address_id'], 'billing');
+                $shippingQuote = $this->shippingService->quoteForAddress($user, $shippingAddress->id, $cartItems->groupBy(fn ($item) => $item->product->shop_id)->count());
+            }
 
             if (!$shippingQuote['success']) {
                 throw new CheckoutException('Sorry, delivery is not available in this shipping address.');
@@ -60,15 +74,20 @@ class OrderService
             throw new CheckoutException('Please select a pick up point.');
         }
 
-        $grouped = $cartItems->groupBy(fn ($item) => $item->product->shop_id);
-        $couponMap = $this->couponService->resolveCheckoutCoupons($user, $payload['coupon_codes'] ?? [], $cartItems);
+        if ($isGuestCheckout && $payload['payment_type'] === 'wallet') {
+            throw new CheckoutException("Wallet payment is only available for signed-in customers.");
+        }
 
-        return DB::transaction(function () use ($user, $payload, $receipt, $cartItems, $grouped, $couponMap, $shippingAddress, $billingAddress, $shippingCostPerShop, $typeOfDelivery) {
+        $grouped = $cartItems->groupBy(fn ($item) => $item->product->shop_id);
+        $couponMap = $this->couponService->resolveCheckoutCoupons($user, $tempUserId, $payload['coupon_codes'] ?? [], $cartItems);
+
+        return DB::transaction(function () use ($user, $payload, $receipt, $cartItems, $grouped, $couponMap, $shippingAddress, $billingAddress, $shippingCostPerShop, $typeOfDelivery, $isGuestCheckout) {
             $combinedOrder = new CombinedOrder();
-            $combinedOrder->user_id = $user->id;
+            $combinedOrder->user_id = $user?->id;
+            $combinedOrder->guest_id = $isGuestCheckout ? random_int(100000, 999999) : null;
             $combinedOrder->code = now()->format('Ymd-His') . random_int(10, 99);
-            $combinedOrder->shipping_address = $shippingAddress ? json_encode($shippingAddress->toArray()) : null;
-            $combinedOrder->billing_address = $billingAddress ? json_encode($billingAddress->toArray()) : null;
+            $combinedOrder->shipping_address = $shippingAddress ? $this->encodeAddress($shippingAddress) : null;
+            $combinedOrder->billing_address = $billingAddress ? $this->encodeAddress($billingAddress) : null;
             $combinedOrder->grand_total = 0;
             $combinedOrder->save();
 
@@ -91,12 +110,12 @@ class OrderService
                 $shopGrandTotal = round(($subtotal + $taxTotal + $shopShipping) - $couponDiscount, 2);
 
                 $order = Order::query()->create([
-                    'user_id' => $user->id,
+                    'user_id' => $user?->id,
                     'shop_id' => $shopId,
                     'combined_order_id' => $combinedOrder->id,
                     'code' => $packageNumber,
-                    'shipping_address' => $shippingAddress ? json_encode($shippingAddress->toArray()) : null,
-                    'billing_address' => $billingAddress ? json_encode($billingAddress->toArray()) : null,
+                    'shipping_address' => $shippingAddress ? $this->encodeAddress($shippingAddress) : null,
+                    'billing_address' => $billingAddress ? $this->encodeAddress($billingAddress) : null,
                     'shipping_cost' => $shopShipping,
                     'grand_total' => $shopGrandTotal,
                     'coupon_code' => data_get($couponMap, $shopId . '.coupon.code'),
@@ -132,12 +151,14 @@ class OrderService
                 }
 
                 if (isset($couponMap[$shopId])) {
-                    DB::table('coupon_usages')->insert([
-                        'user_id' => $user->id,
-                        'coupon_id' => $couponMap[$shopId]['coupon']->id,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
+                    if ($user) {
+                        DB::table('coupon_usages')->insert([
+                            'user_id' => $user->id,
+                            'coupon_id' => $couponMap[$shopId]['coupon']->id,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+                    }
                 }
 
                 $this->persistManualPayment($order, $payload, $receipt);
@@ -149,7 +170,9 @@ class OrderService
             $combinedOrder->grand_total = round($grandTotal, 2);
             $combinedOrder->save();
 
-            $this->finalizeWalletPayment($user, $combinedOrder, $payload['payment_type']);
+            if ($user) {
+                $this->finalizeWalletPayment($user, $combinedOrder, $payload['payment_type']);
+            }
 
             DB::table('carts')->whereIn('id', $cartItems->pluck('id'))->delete();
 
@@ -192,6 +215,32 @@ class OrderService
         }
 
         return $address;
+    }
+
+    private function buildGuestAddressPayload(array $payload): object
+    {
+        return (object) [
+            'name' => (string) $payload['guest_name'],
+            'email' => (string) $payload['guest_email'],
+            'phone' => (string) $payload['guest_phone'],
+            'address' => (string) $payload['guest_address'],
+            'country' => Country::query()->find($payload['guest_country_id'])?->name,
+            'country_id' => (int) $payload['guest_country_id'],
+            'state' => State::query()->find($payload['guest_state_id'])?->name,
+            'state_id' => (int) $payload['guest_state_id'],
+            'city' => City::query()->find($payload['guest_city_id'])?->name,
+            'city_id' => (int) $payload['guest_city_id'],
+            'postal_code' => (string) $payload['guest_postal_code'],
+        ];
+    }
+
+    private function encodeAddress(mixed $address): string
+    {
+        if ($address instanceof Address) {
+            return json_encode($address->toArray());
+        }
+
+        return json_encode((array) $address);
     }
 
     private function isDirectSettlementPayment(string $paymentType): bool

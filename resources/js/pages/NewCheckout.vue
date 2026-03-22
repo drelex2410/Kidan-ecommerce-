@@ -107,16 +107,27 @@
                             </div>
                         </div>
                         <!-- ========== -->
-                        <div v-if="selectedDeliveryType == 'home_delivery'">
+                        <div>
                             <address-dialog
+                                v-if="isAuthenticated && selectedDeliveryType == 'home_delivery'"
                                 :show="addDialogShow"
                                 @close="addressDialogClosed"
                                 :old-address="addressSelectedForEdit"
                             />
                             <h3 class="opacity-80 mb-3 fs-20">
-                                {{ $t("shipping_address") }}
+                                {{
+                                    isAuthenticated
+                                        ? $t("shipping_address")
+                                        : $t("contact_information")
+                                }}
                             </h3>
-                            <div class="mb-4">
+                            <div
+                                v-if="
+                                    isAuthenticated &&
+                                    selectedDeliveryType == 'home_delivery'
+                                "
+                                class="mb-4"
+                            >
                                 <div
                                     class="position-relative mb-3"
                                     v-for="address in getAddresses"
@@ -180,10 +191,104 @@
                                     <span>{{ $t("add_new_address") }}</span>
                                 </v-btn>
                             </div>
-                            <h3 class="opacity-80 mb-3 fs-20">
+                            <div v-else-if="!isAuthenticated" class="mb-4">
+                                <v-row>
+                                    <v-col cols="12" md="6">
+                                        <v-text-field
+                                            v-model="guestForm.name"
+                                            :label="$t('full_name')"
+                                            variant="outlined"
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+                                    <v-col cols="12" md="6">
+                                        <v-text-field
+                                            v-model="guestForm.email"
+                                            :label="$t('email')"
+                                            type="email"
+                                            variant="outlined"
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+                                    <v-col cols="12" md="6">
+                                        <v-text-field
+                                            v-model="guestForm.phone"
+                                            :label="$t('phone')"
+                                            variant="outlined"
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+                                    <v-col cols="12" md="6">
+                                        <v-text-field
+                                            v-model="guestForm.postal_code"
+                                            :label="$t('postal_code')"
+                                            variant="outlined"
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+                                    <v-col cols="12">
+                                        <v-textarea
+                                            v-model="guestForm.address"
+                                            :label="$t('address')"
+                                            variant="outlined"
+                                            rows="3"
+                                            hide-details="auto"
+                                        />
+                                    </v-col>
+                                    <v-col cols="12" md="4">
+                                        <v-autocomplete
+                                            v-model="guestForm.country_id"
+                                            :items="countries"
+                                            :label="$t('country')"
+                                            variant="outlined"
+                                            item-title="name"
+                                            item-value="id"
+                                            hide-details="auto"
+                                            @update:modelValue="guestCountryChanged"
+                                        />
+                                    </v-col>
+                                    <v-col cols="12" md="4">
+                                        <v-autocomplete
+                                            v-model="guestForm.state_id"
+                                            :items="filteredStates"
+                                            :label="$t('state')"
+                                            variant="outlined"
+                                            item-title="name"
+                                            item-value="id"
+                                            hide-details="auto"
+                                            @update:modelValue="guestStateChanged"
+                                        />
+                                    </v-col>
+                                    <v-col cols="12" md="4">
+                                        <v-autocomplete
+                                            v-model="guestForm.city_id"
+                                            :items="filteredCities"
+                                            :label="$t('city')"
+                                            variant="outlined"
+                                            item-title="name"
+                                            item-value="id"
+                                            hide-details="auto"
+                                            @update:modelValue="guestShippingChanged"
+                                        />
+                                    </v-col>
+                                </v-row>
+                            </div>
+                            <h3
+                                v-if="
+                                    isAuthenticated &&
+                                    selectedDeliveryType == 'home_delivery'
+                                "
+                                class="opacity-80 mb-3 fs-20"
+                            >
                                 {{ $t("billing_address") }}
                             </h3>
-                            <div class="mb-4">
+                            <div
+                                v-if="
+                                    isAuthenticated &&
+                                    selectedDeliveryType == 'home_delivery'
+                                "
+                                class="mb-4"
+                            >
                                 <div
                                     class="position-relative mb-3"
                                     v-for="address in getAddresses"
@@ -802,7 +907,7 @@
                         </div>
                     </div>
 
-                    <template v-if="generalSettings.wallet_system == 1">
+                    <template v-if="generalSettings.wallet_system == 1 && isAuthenticated">
                         <div class="mt-4 mb-3 fs-16 fw-700">
                             {{ $t("or") }},
                         </div>
@@ -968,6 +1073,10 @@ export default {
             selectedPickupPoint: null,
             checkbox: false,
             checkoutLoading: false,
+            countriesLoaded: false,
+            countries: [],
+            filteredStates: [],
+            filteredCities: [],
             selectedShippingAddressId: null,
             selectedBillingAddressId: null,
             selectedPaymentMethod: null,
@@ -980,6 +1089,16 @@ export default {
             rechargeDialogShow: false,
             transactionId: null,
             receipt: null,
+            guestForm: {
+                name: "",
+                email: "",
+                phone: "",
+                address: "",
+                postal_code: "",
+                country_id: null,
+                state_id: null,
+                city_id: null,
+            },
             authorizeNet: {
                 card_number: "",
                 cvv: "",
@@ -1036,8 +1155,12 @@ export default {
             "getIsDigital",
             "getPickupPoints",
             "getCartProducts",
+            "getTempUserId",
         ]),
-        ...mapGetters("auth", ["currentUser"]),
+        ...mapGetters("auth", ["currentUser", "isAuthenticated"]),
+        guestShopCount() {
+            return Math.max(1, this.getCartShops.length);
+        },
         totalPrice() {
             return this.selectedDeliveryType == "home_delivery"
                 ? this.selectedDeliveryOption === "standard"
@@ -1114,10 +1237,27 @@ export default {
             this.getShippingCost(address_id);
         },
         async getShippingCost(address_id) {
-            const res = await this.call_api(
-                "get",
-                `checkout/get-shipping-cost/${address_id}`
-            );
+            let res;
+
+            if (this.isAuthenticated) {
+                res = await this.call_api(
+                    "get",
+                    `checkout/get-shipping-cost/${address_id}`
+                );
+            } else {
+                if (!this.guestForm.city_id) {
+                    this.selectedDeliveryOption = "";
+                    this.standardDeliveryCost = 0;
+                    this.expressDeliveryCost = 0;
+                    return;
+                }
+
+                res = await this.call_api("post", "checkout/shipping-quote", {
+                    guest_city_id: this.guestForm.city_id,
+                    shop_count: this.guestShopCount,
+                });
+            }
+
             this.selectedDeliveryOption = res.data.success ? "standard" : "";
             this.standardDeliveryCost = parseFloat(
                 res.data.standard_delivery_cost
@@ -1125,6 +1265,64 @@ export default {
             this.expressDeliveryCost = parseFloat(
                 res.data.express_delivery_cost
             );
+        },
+        async fetchCountries() {
+            if (this.countriesLoaded) return;
+            const res = await this.call_api("get", "all-countries");
+            if (res.data.success) {
+                this.countriesLoaded = true;
+                this.countries = res.data.data;
+            }
+        },
+        async guestCountryChanged() {
+            this.filteredStates = [];
+            this.filteredCities = [];
+            this.guestForm.state_id = null;
+            this.guestForm.city_id = null;
+
+            if (!this.guestForm.country_id) return;
+
+            const res = await this.call_api("get", `states/${this.guestForm.country_id}`);
+            if (res.data.success) {
+                this.filteredStates = res.data.data;
+            }
+        },
+        async guestStateChanged() {
+            this.filteredCities = [];
+            this.guestForm.city_id = null;
+
+            if (!this.guestForm.state_id) return;
+
+            const res = await this.call_api("get", `cities/${this.guestForm.state_id}`);
+            if (res.data.success) {
+                this.filteredCities = res.data.data;
+            }
+        },
+        guestShippingChanged() {
+            if (this.selectedDeliveryType === "home_delivery") {
+                this.getShippingCost(null);
+            }
+        },
+        validateGuestCheckout() {
+            const hasAllFields =
+                this.guestForm.name &&
+                this.guestForm.email &&
+                this.guestForm.phone &&
+                this.guestForm.address &&
+                this.guestForm.postal_code &&
+                this.guestForm.country_id &&
+                this.guestForm.state_id &&
+                this.guestForm.city_id;
+
+            if (!hasAllFields) {
+                this.snack({
+                    message: `Please complete your contact and shipping details`,
+                    color: "red",
+                });
+                return false;
+            }
+
+            return true;
         },
         async proceedCheckout() {
             if (!this.checkbox) {
@@ -1141,7 +1339,11 @@ export default {
                 });
                 return;
             }
-            if (this.selectedDeliveryType == "home_delivery" && this.getAddresses.length == 0) {
+            if (
+                this.selectedDeliveryType == "home_delivery" &&
+                this.isAuthenticated &&
+                this.getAddresses.length == 0
+            ) {
                 this.snack({
                     message: `Please add a delivery address`,
                     color: "red",
@@ -1150,7 +1352,16 @@ export default {
             }
 
             if (
+                this.selectedDeliveryType == "home_delivery" &&
+                !this.isAuthenticated &&
+                !this.validateGuestCheckout()
+            ) {
+                return;
+            }
+
+            if (
                 this.selectedDeliveryType === "home_delivery" &&
+                this.isAuthenticated &&
                 !this.selectedShippingAddressId
             ) {
                 this.snack({
@@ -1161,6 +1372,7 @@ export default {
             }
             if (
                 this.selectedDeliveryType === "home_delivery" &&
+                this.isAuthenticated &&
                 !this.selectedBillingAddressId
             ) {
                 this.snack({
@@ -1236,16 +1448,28 @@ export default {
             let formData = new FormData();
             formData.append(
                 "shipping_address_id",
-                this.selectedShippingAddressId
+                this.selectedShippingAddressId ?? ""
             );
             formData.append(
                 "billing_address_id",
-                this.selectedBillingAddressId
+                this.selectedBillingAddressId ?? ""
             );
             formData.append("payment_type", this.selectedPaymentMethod.code);
             formData.append("delivery_type", this.selectedDeliveryOption);
             formData.append("type_of_delivery", this.selectedDeliveryType);
-            formData.append("pickup_point_id", this.selectedPickupPoint);
+            formData.append("pickup_point_id", this.selectedPickupPoint ?? "");
+            formData.append("temp_user_id", this.getTempUserId ?? "");
+
+            if (!this.isAuthenticated) {
+                formData.append("guest_name", this.guestForm.name);
+                formData.append("guest_email", this.guestForm.email);
+                formData.append("guest_phone", this.guestForm.phone);
+                formData.append("guest_address", this.guestForm.address);
+                formData.append("guest_postal_code", this.guestForm.postal_code);
+                formData.append("guest_country_id", this.guestForm.country_id);
+                formData.append("guest_state_id", this.guestForm.state_id);
+                formData.append("guest_city_id", this.guestForm.city_id);
+            }
 
             let cartIds = this.getSelectedCartIds;
             cartIds.forEach((item, index) => {
@@ -1278,7 +1502,7 @@ export default {
                             paymentAmount: 0,
                             paymentMethod: res.data.payment_method,
                             paymentType: "cart_payment",
-                            userId: this.currentUser.id,
+                            userId: this.currentUser?.id || null,
                             oderCode: res.data.order_code,
 
                             // Authorize Net
@@ -1312,10 +1536,18 @@ export default {
     },
     async created() {
         await this.fetchPickupPoints();
-        await this.fetchAddresses();
-        this.selectedShippingAddressId = this.getDefaultShippingAddress.id;
-        this.selectedBillingAddressId = this.getDefaultBillingAddress.id;
-        this.getShippingCost(this.selectedShippingAddressId);
+        if (this.isAuthenticated) {
+            await this.fetchAddresses();
+            this.selectedShippingAddressId =
+                this.getDefaultShippingAddress?.id ?? null;
+            this.selectedBillingAddressId =
+                this.getDefaultBillingAddress?.id ?? null;
+            if (this.selectedShippingAddressId) {
+                this.getShippingCost(this.selectedShippingAddressId);
+            }
+        } else {
+            await this.fetchCountries();
+        }
 
         let dateArray = [];
         let i = new Date().getFullYear();

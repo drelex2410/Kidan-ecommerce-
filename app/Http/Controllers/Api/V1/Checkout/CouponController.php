@@ -15,6 +15,7 @@ class CouponController extends Controller
         try {
             $result = $couponService->apply(
                 $request->user('api'),
+                $request->validated('temp_user_id'),
                 $request->validated('coupon_code'),
                 $request->validated('shop_id'),
                 $request->validated('cart_item_ids')

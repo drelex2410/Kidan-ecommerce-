@@ -8,7 +8,7 @@ class InitializePaymentRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user('api') !== null;
+        return true;
     }
 
     public function rules(): array

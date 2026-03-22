@@ -11,14 +11,17 @@
                 <div class="card-header">
                     <div class="flex-grow-1 row">
                         <div class="col-md mb-3">
+                            @php
+                                $orderCustomerInfo = $order->user ?: json_decode($order->shipping_address);
+                            @endphp
                             <div>
                                 <div class="fs-15 fw-600 mb-2">{{ translate('Customer info') }}</div>
                                 <div><span class="opacity-80 mr-2 ml-0">{{ translate('Name') }}:</span>
-                                    {{ $order->user->name ?? '' }}</div>
+                                    {{ $orderCustomerInfo->name ?? '' }}</div>
                                 <div><span class="opacity-80 mr-2 ml-0">{{ translate('Email') }}:</span>
-                                    {{ $order->user->email ?? '' }}</div>
+                                    {{ $orderCustomerInfo->email ?? '' }}</div>
                                 <div><span class="opacity-80 mr-2 ml-0">{{ translate('Phone') }}:</span>
-                                    {{ $order->user->phone ?? '' }}</div>
+                                    {{ $orderCustomerInfo->phone ?? '' }}</div>
                             </div>
                         </div>
                         <div class="col-md-6 col-xl-4">

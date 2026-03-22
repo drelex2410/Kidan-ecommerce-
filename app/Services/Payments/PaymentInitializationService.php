@@ -75,7 +75,7 @@ class PaymentInitializationService
         return $this->dispatchGatewayInitializer($gateway, $request);
     }
 
-    private function createPayment(string $gateway, Request $request, User $user): Payment
+    private function createPayment(string $gateway, Request $request, ?User $user): Payment
     {
         $this->gatewayManager->assertEnabled($gateway);
 
@@ -93,7 +93,7 @@ class PaymentInitializationService
                 throw new HttpException(404, 'Order not found.');
             }
 
-            if ((int) $combinedOrder->user_id !== (int) $user->id) {
+            if ($combinedOrder->user_id !== null && (!$user || (int) $combinedOrder->user_id !== (int) $user->id)) {
                 throw new HttpException(403, 'You are not allowed to pay for this order.');
             }
 
@@ -106,6 +106,10 @@ class PaymentInitializationService
 
             $amount = (float) $combinedOrder->grand_total;
         } elseif ($paymentType === 'wallet_payment') {
+            if (!$user) {
+                throw new HttpException(401, 'Authentication is required to recharge this wallet.');
+            }
+
             $requestedUserId = (int) $request->input('user_id', $user->id);
 
             if ($requestedUserId !== (int) $user->id) {
@@ -121,7 +125,7 @@ class PaymentInitializationService
 
         return DB::transaction(function () use ($gateway, $paymentType, $paymentMethod, $redirectTo, $amount, $orderCode, $combinedOrder, $user, $request) {
             return Payment::query()->create([
-                'user_id' => $user->id,
+                'user_id' => $user?->id,
                 'combined_order_id' => $combinedOrder?->id,
                 'gateway' => $gateway,
                 'payment_type' => $paymentType,
@@ -136,7 +140,7 @@ class PaymentInitializationService
         });
     }
 
-    private function resolveWebUser(Request $request): User
+    private function resolveWebUser(Request $request): ?User
     {
         $postedUserId = (int) $request->input('user_id');
 
@@ -152,6 +156,10 @@ class PaymentInitializationService
 
         if ($authUser instanceof User) {
             return $authUser;
+        }
+
+        if (in_array((string) $request->input('payment_type'), ['cart_payment', 'repayment'], true) && $request->filled('order_code')) {
+            return null;
         }
 
         throw new HttpException(401, 'Authentication is required to initialize payment.');

@@ -14,6 +14,7 @@ class CombinedOrderResource extends JsonResource
             'id' => (int) $this->id,
             'code' => (string) $this->code,
             'user' => new AuthUserResource($this->user),
+            'guest_id' => $this->guest_id,
             'shipping_address' => $this->decodeAddress($this->shipping_address),
             'billing_address' => $this->decodeAddress($this->billing_address),
             'grand_total' => (float) ($this->grand_total ?? 0),

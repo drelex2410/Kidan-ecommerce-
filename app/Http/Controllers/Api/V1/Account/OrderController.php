@@ -59,6 +59,25 @@ class OrderController extends Controller
         ]);
     }
 
+    public function showPublic(string $order_code): JsonResponse
+    {
+        $order = $this->orderService->findByCodeForGuest($order_code);
+
+        if (!$order) {
+            return response()->json([
+                'success' => false,
+                'message' => translate('No order found by this code'),
+                'status' => 404,
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'status' => 200,
+            'data' => (new CombinedOrderResource($order))->resolve(),
+        ]);
+    }
+
     public function cancel(Request $request, int $order_id): JsonResponse
     {
         try {

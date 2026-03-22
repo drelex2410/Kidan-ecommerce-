@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Notifications\UserBannedNotification;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Http\Request;
 
 class CustomerController extends Controller
@@ -11,6 +12,7 @@ class CustomerController extends Controller
     public function __construct()
     {
         $this->middleware(['permission:show_customers'])->only('index');
+        $this->middleware(['permission:show_customers'])->only(['create', 'store']);
         $this->middleware(['permission:view_customers'])->only('show');
         $this->middleware(['permission:delete_customers'])->only('destroy');
     }
@@ -39,7 +41,7 @@ class CustomerController extends Controller
      */
     public function create()
     {
-        //
+        return view('backend.customers.create');
     }
 
     /**
@@ -50,7 +52,43 @@ class CustomerController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255', 'required_without:phone', 'unique:users,email'],
+            'phone' => ['nullable', 'string', 'max:30', 'required_without:email', 'unique:users,phone'],
+            'password' => [
+                'required',
+                'string',
+                'min:8',
+                'confirmed',
+                'regex:/[A-Z]/',
+                'regex:/[a-z]/',
+                'regex:/[0-9]/',
+            ],
+        ], [
+            'email.required_without' => translate('Email or phone is required.'),
+            'phone.required_without' => translate('Phone or email is required.'),
+            'password.confirmed' => translate('Password confirmation does not match.'),
+            'password.min' => translate('Password must be at least 8 characters.'),
+            'password.regex' => translate('Password must contain uppercase, lowercase and a number.'),
+        ]);
+
+        $phone = isset($validated['phone']) ? preg_replace('/\s+/', '', (string) $validated['phone']) : null;
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'email' => $validated['email'] ?? null,
+            'phone' => $phone ?: null,
+            'password' => Hash::make($validated['password']),
+            'user_type' => 'customer',
+            'email_verified_at' => !empty($validated['email']) ? now() : null,
+            'phone_verified_at' => !empty($phone) ? now() : null,
+            'banned' => false,
+        ]);
+
+        flash(translate('Customer created successfully'))->success();
+
+        return redirect()->route('customers.show', $user->id);
     }
 
     /**

@@ -14,6 +14,11 @@
                 <h5 class="mb-0 h6">{{ translate('Customers') }}</h5>
                 
                 <div class="d-flex flex-wrap">
+                    <div class="mr-2 mb-md-0">
+                        <a href="{{ route('customers.create') }}" class="btn btn-primary">
+                            {{ translate('Add Customer') }}
+                        </a>
+                    </div>
                     <div class="dropdown mr-2 mb-md-0">
                         <button class="btn border dropdown-toggle" type="button" data-toggle="dropdown">
                             {{translate('Bulk Action')}}

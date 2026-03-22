@@ -29,12 +29,10 @@
                                         </div>
                                         <h2 class="welcome-text mb-2">Verification</h2>
                                         <p class="subtitle-text">
-                                            <span
-                                                v-if="authSettings.customer_login_with == 'email' || (authSettings.customer_login_with == 'email_phone' && authSettings.customer_otp_with == 'email')">
+                                            <span v-if="effectiveVerificationChannel === 'email'">
                                                 {{ $t('a_verification_code_has_been_sent_to_your_email') }}
                                             </span>
-                                            <span
-                                                v-else-if="authSettings.customer_login_with == 'phone' || (authSettings.customer_login_with == 'email_phone' && authSettings.customer_otp_with == 'phone')">
+                                            <span v-else-if="effectiveVerificationChannel === 'phone'">
                                                 {{ $t('a_verification_code_has_been_sent_to_your_phone_number') }}
                                             </span>
                                         </p>
@@ -43,7 +41,7 @@
                                     <!-- Verification Form -->
                                     <v-form ref="loginForm" lazy-validation @submit.prevent="verifyAccount()">
                                         <!-- Email Field -->
-                                        <div v-if="authSettings.customer_login_with == 'email' || (authSettings.customer_login_with == 'email_phone' && authSettings.customer_otp_with == 'email')"
+                                        <div v-if="effectiveVerificationChannel === 'email'"
                                             class="mb-4">
                                             <div class="field-label mb-2">{{ $t('email') }}</div>
                                             <v-text-field variant="outlined" v-model="form.email"
@@ -56,7 +54,7 @@
                                         </div>
 
                                         <!-- Phone Field -->
-                                        <div v-if="authSettings.customer_login_with == 'phone' || (authSettings.customer_login_with == 'email_phone' && authSettings.customer_otp_with == 'phone')"
+                                        <div v-if="effectiveVerificationChannel === 'phone'"
                                             class="mb-4">
                                             <div class="field-label mb-2">
                                                 {{ $t("phone_number") }}
@@ -81,12 +79,10 @@
                                         <!-- Verification Code -->
                                         <div class="mb-6">
                                             <div class="field-label mb-2 text-center">
-                                                <span
-                                                    v-if="authSettings.customer_login_with == 'email' || (authSettings.customer_login_with == 'email_phone' && authSettings.customer_otp_with == 'email')">
+                                                <span v-if="effectiveVerificationChannel === 'email'">
                                                     {{ $t('enter_your_email_address_verification_code') }}
                                                 </span>
-                                                <span
-                                                    v-else-if="authSettings.customer_login_with == 'phone' || (authSettings.customer_login_with == 'email_phone' && authSettings.customer_otp_with == 'phone')">
+                                                <span v-else-if="effectiveVerificationChannel === 'phone'">
                                                     {{ $t('enter_your_phone_number_verification_code') }}
                                                 </span>
                                             </div>
@@ -161,13 +157,13 @@ export default {
         form: {
             email: {
                 requiredIf: requiredIf(function () {
-                    return this.authSettings.customer_login_with == 'email' || (this.authSettings.customer_login_with == 'email_phone' && this.authSettings.customer_otp_with == 'email')
+                    return this.effectiveVerificationChannel === 'email'
                 }),
                 email
             },
             phone: {
                 requiredIf: requiredIf(function () {
-                    return this.authSettings.customer_login_with == 'phone' || (this.authSettings.customer_login_with == 'email_phone' && this.authSettings.customer_otp_with == 'phone')
+                    return this.effectiveVerificationChannel === 'phone'
                 }),
             },
             code: {
@@ -179,6 +175,10 @@ export default {
 
         ...mapGetters("auth", ["authSettings"]),
         ...mapGetters("app", ["availableCountries", "banners",]),
+        effectiveVerificationChannel() {
+            return this.$route.params.channel
+                || (this.authSettings.customer_otp_with === "phone" ? "phone" : "email");
+        },
         getLogoInitials() {
             const appName = this.$store.getters["app/appName"];
             return appName ? appName.substring(0, 2).toUpperCase() : "AV";
@@ -207,7 +207,7 @@ export default {
             const isFormCorrect = await this.v$.$validate();
             if (!isFormCorrect) return;
 
-            if ((this.authSettings.customer_login_with == 'phone' || (this.authSettings.customer_login_with == 'email_phone' && this.authSettings.customer_otp_with == 'phone')) && this.form.invalidPhone) {
+            if (this.effectiveVerificationChannel === 'phone' && this.form.invalidPhone) {
                 this.form.showInvalidPhone = true;
                 return;
             }
@@ -234,11 +234,19 @@ export default {
             this.loading = false;
         },
         async resendCode() {
-            this.v$.form.email.$touch()
-            if (this.v$.form.email.$anyError) {
+            if (this.effectiveVerificationChannel === 'email') {
+                this.v$.form.email.$touch();
+            } else {
+                this.v$.form.phone.$touch();
+            }
+
+            if (
+                (this.effectiveVerificationChannel === 'email' && this.v$.form.email.$anyError) ||
+                (this.effectiveVerificationChannel === 'phone' && this.v$.form.phone.$anyError)
+            ) {
                 return;
             }
-            if ((this.authSettings.customer_login_with == 'phone' || (this.authSettings.customer_login_with == 'email_phone' && this.authSettings.customer_otp_with == 'phone')) && this.form.invalidPhone) {
+            if (this.effectiveVerificationChannel === 'phone' && this.form.invalidPhone) {
                 this.form.showInvalidPhone = true;
                 return;
             }

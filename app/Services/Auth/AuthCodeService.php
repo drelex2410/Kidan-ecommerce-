@@ -8,6 +8,7 @@ use App\Models\AuthCode;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Mail;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AuthCodeService
 {
@@ -53,36 +54,26 @@ class AuthCodeService
 
     public function sendVerificationCode(User $user, string $channel, string $target, string $code): void
     {
-        if ($channel === 'phone') {
-            $this->smsServices->phoneVerificationSms($target, $code);
-
-            return;
-        }
-
-        Mail::to($target)->queue(new EmailManager([
-            'view' => 'emails.verification',
-            'from' => env('MAIL_FROM_ADDRESS'),
-            'subject' => translate('Email Verification'),
-            'content' => translate('You verification code is '),
-            'verification_code' => $code,
-        ]));
+        $this->dispatchCode(
+            $channel,
+            $target,
+            $code,
+            'Email Verification',
+            'You verification code is ',
+            fn (string $phone, string $verificationCode): bool => $this->smsServices->phoneVerificationSms($phone, $verificationCode)
+        );
     }
 
     public function sendPasswordResetCode(string $channel, string $target, string $code): void
     {
-        if ($channel === 'phone') {
-            $this->smsServices->forgotPasswordSms($target, $code);
-
-            return;
-        }
-
-        Mail::to($target)->queue(new EmailManager([
-            'view' => 'emails.verification',
-            'from' => env('MAIL_FROM_ADDRESS'),
-            'subject' => translate('Password Reset'),
-            'content' => translate('Password reset code is'),
-            'verification_code' => $code,
-        ]));
+        $this->dispatchCode(
+            $channel,
+            $target,
+            $code,
+            'Password Reset',
+            'Password reset code is',
+            fn (string $phone, string $verificationCode): bool => $this->smsServices->forgotPasswordSms($phone, $verificationCode)
+        );
     }
 
     private function issueCode(User $user, string $purpose, string $channel, string $target, int $expiresInMinutes): AuthCode
@@ -111,5 +102,36 @@ class AuthCodeService
         ])->save();
 
         return $authCode;
+    }
+
+    private function dispatchCode(
+        string $channel,
+        string $target,
+        string $code,
+        string $subject,
+        string $content,
+        callable $smsCallback
+    ): void {
+        if ($channel === 'phone') {
+            if (!$smsCallback($target, $code)) {
+                throw new HttpException(503, 'Unable to send verification code at the moment.');
+            }
+
+            return;
+        }
+
+        try {
+            Mail::to($target)->send(new EmailManager([
+                'view' => 'emails.verification',
+                'from' => env('MAIL_FROM_ADDRESS'),
+                'subject' => translate($subject),
+                'content' => translate($content),
+                'verification_code' => $code,
+            ]));
+        } catch (\Throwable $exception) {
+            report($exception);
+
+            throw new HttpException(503, 'Unable to send verification code at the moment.');
+        }
     }
 }

@@ -27,6 +27,9 @@ class ResendCodeController extends Controller
                 ? 'A verification code has been sent to your phone.'
                 : 'A verification code has been sent to your email.',
             'verified' => false,
+            'requires_verification' => true,
+            'channel' => $result['channel'] ?? null,
+            'target' => $result['target'] ?? null,
             'token' => null,
             'user' => $result['user'],
             'followed_shops' => $result['user']->followed_shops()->pluck('shops.id')->values()->all(),

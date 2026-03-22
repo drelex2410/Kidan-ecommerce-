@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Http;
 
 class SmsServices
 {
-    public function sendSMS($to, $text, $from = null)
+    public function sendSMS($to, $text, $from = null): bool
     {
         try {
 
@@ -22,6 +22,7 @@ class SmsServices
                     "From" => env('VALID_TWILLO_NUMBER'),
                     "To" => $to,
                 ]);
+                return true;
             } elseif (get_setting('active_sms_gateway') == 'vonage') {
                 Http::post('https://rest.nexmo.com/sms/json', [
                     'from' => env('APP_NAME'),
@@ -30,20 +31,25 @@ class SmsServices
                     'api_key' => env('VONAGE_KEY'),
                     'api_secret' => env('VONAGE_SECRET'),
                 ]);
+                return true;
             }
         } catch (Exception $e) {
-            // dd($e);
+            report($e);
         }
+
+        report(new Exception('SMS delivery failed or no active SMS gateway is configured.'));
+
+        return false;
     }
 
-    public function phoneVerificationSms($to, $code)
+    public function phoneVerificationSms($to, $code): bool
     {
         $sms = 'Your verification code for ' . env('APP_NAME') . ' is ' . $code . '.';
-        $this->sendSMS($to, $sms);
+        return $this->sendSMS($to, $sms);
     }
-    public function forgotPasswordSms($to, $code)
+    public function forgotPasswordSms($to, $code): bool
     {
         $sms = 'Your password reset code for ' . env('APP_NAME') . ' is ' . $code . '.';
-        $this->sendSMS($to, $sms);
+        return $this->sendSMS($to, $sms);
     }
 }

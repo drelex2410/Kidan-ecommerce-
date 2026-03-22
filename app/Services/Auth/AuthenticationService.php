@@ -53,7 +53,9 @@ class AuthenticationService
             return [
                 'user' => $user,
                 'verified' => false,
+                'requires_verification' => true,
                 'channel' => $channel,
+                'target' => $target,
                 'token' => null,
             ];
         }
@@ -61,7 +63,9 @@ class AuthenticationService
         return [
             'user' => $user,
             'verified' => true,
+            'requires_verification' => false,
             'channel' => null,
+            'target' => null,
             'token' => $user->createToken($credentials['device_name'] ?? ($credentials['form_type'] ?? 'customer'))->plainTextToken,
         ];
     }

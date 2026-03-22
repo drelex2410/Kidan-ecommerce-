@@ -40,7 +40,9 @@ class VerificationService
         return [
             'user' => $user,
             'verified' => true,
+            'requires_verification' => false,
             'channel' => $channel,
+            'target' => $target,
             'token' => $user->createToken($payload['device_name'] ?? 'customer')->plainTextToken,
         ];
     }
@@ -60,7 +62,9 @@ class VerificationService
         return [
             'user' => $user,
             'verified' => false,
+            'requires_verification' => true,
             'channel' => $channel,
+            'target' => $target,
         ];
     }
 

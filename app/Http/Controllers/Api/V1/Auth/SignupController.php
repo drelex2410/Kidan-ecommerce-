@@ -33,6 +33,9 @@ class SignupController extends Controller
                     ? 'A verification code has been sent to your phone.'
                     : 'A verification code has been sent to your email.'),
             'verified' => $result['verified'],
+            'requires_verification' => $result['requires_verification'] ?? !$result['verified'],
+            'channel' => $result['channel'] ?? null,
+            'target' => $result['target'] ?? null,
             'token' => $token,
             'user' => $result['user'],
             'followed_shops' => [],

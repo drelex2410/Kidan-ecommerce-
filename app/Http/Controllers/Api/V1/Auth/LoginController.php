@@ -25,6 +25,9 @@ class LoginController extends Controller
         return new AuthResponseResource([
             'message' => $result['verified'] ? 'Login successful.' : 'Please verify your account.',
             'verified' => $result['verified'],
+            'requires_verification' => $result['requires_verification'] ?? !$result['verified'],
+            'channel' => $result['channel'] ?? null,
+            'target' => $result['target'] ?? null,
             'token' => $result['token'],
             'user' => $result['user'],
             'followed_shops' => $result['user']->followed_shops()->pluck('shops.id')->values()->all(),

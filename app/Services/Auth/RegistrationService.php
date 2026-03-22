@@ -17,10 +17,12 @@ class RegistrationService
 
     public function register(array $payload): array
     {
+        $phone = $this->normalizePhone($payload['phone'] ?? null);
+
         $user = User::query()->create([
             'name' => $payload['name'],
             'email' => $payload['email'] ?? null,
-            'phone' => $payload['phone'] ?? null,
+            'phone' => $phone,
             'password' => Hash::make($payload['password']),
             'user_type' => 'customer',
             'banned' => false,
@@ -41,7 +43,9 @@ class RegistrationService
             return [
                 'user' => $user,
                 'verified' => true,
+                'requires_verification' => false,
                 'channel' => null,
+                'target' => null,
             ];
         }
 
@@ -56,7 +60,9 @@ class RegistrationService
         return [
             'user' => $user,
             'verified' => false,
+            'requires_verification' => true,
             'channel' => $channel,
+            'target' => $target,
         ];
     }
 

@@ -87,6 +87,19 @@
                       </p>
                     </div>
 
+                    <div class="mb-3">
+                      <div class="field-label mb-2">Confirm Password</div>
+                      <v-text-field v-model="form.password_confirmation" placeholder="* * * * * * * *"
+                        :type="passwordConfirmationShow ? 'text' : 'password'"
+                        :append-inner-icon="passwordConfirmationShow ? 'mdi-eye-off' : 'mdi-eye'" variant="outlined"
+                        hide-details="auto" required density="comfortable" class="custom-text-field"
+                        @blur="v$.form.password_confirmation.$touch()"
+                        @click:append-inner="passwordConfirmationShow = !passwordConfirmationShow"></v-text-field>
+                      <p v-for="error of v$.form.password_confirmation.$errors" :key="error.$uid" class="text-red mt-1 text-caption">
+                        {{ error.$message }}
+                      </p>
+                    </div>
+
                     <div class="text-end mb-6">
                       <span class="text-caption">{{ $t("by_signing_up_you_agree_to_our") }} </span>
                       <router-link :to="{ name: 'CustomPage', params: { pageSlug: 'terms-and-conditions' } }"
@@ -131,9 +144,11 @@
 import { useVuelidate } from "@vuelidate/core";
 import {
   email,
+  helpers,
   minLength,
   required,
   requiredIf,
+  sameAs,
 } from "@vuelidate/validators";
 import { VueTelInput } from "vue-tel-input";
 import { mapActions, mapGetters, mapMutations } from "vuex";
@@ -161,10 +176,12 @@ export default {
       phone: "",
       email: "",
       password: "",
+      password_confirmation: "",
       invalidPhone: true,
       showInvalidPhone: false,
     },
     passwordShow: false,
+    passwordConfirmationShow: false,
     loading: false,
   }),
   components: {
@@ -192,6 +209,15 @@ export default {
         }),
       },
       password: { required, minLength: minLength(6) },
+      password_confirmation: {
+        required,
+        sameAsPassword: helpers.withMessage(
+          "Password confirmation must match password.",
+          sameAs(function () {
+            return this.form.password;
+          })
+        ),
+      },
     },
   },
   computed: {
@@ -235,7 +261,7 @@ export default {
         if (this.getTempUserId) {
           this.removeTempUserId();
         }
-        if (this.authSettings.customer_otp_with == "disabled") {
+        if (res.data.verified === true) {
           this.login(res.data);
           this.showLoginDialog(false);
           this.updateChatWindow(false);
@@ -243,19 +269,21 @@ export default {
             this.$route.query.redirect || { name: "DashBoard" }
           );
         } else {
-          if (
-            this.authSettings.customer_login_with == "email" ||
-            (this.authSettings.customer_login_with == "email_phone" &&
-              this.authSettings.customer_otp_with == "email")
-          ) {
+          if (res.data.verification_channel === "email") {
             this.$router.push({
               name: "VerifyAccount",
-              params: { email: this.form.email },
+              params: {
+                email: res.data.verification_target || this.form.email,
+                channel: "email",
+              },
             });
           } else {
             this.$router.push({
               name: "VerifyAccount",
-              params: { phone: this.form.phone },
+              params: {
+                phone: res.data.verification_target || this.form.phone,
+                channel: "phone",
+              },
             });
           }
 

@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schema;
+use Mockery;
 use Tests\TestCase;
 
 class PhaseTwoAuthTest extends TestCase
@@ -39,6 +40,8 @@ class PhaseTwoAuthTest extends TestCase
 
     public function test_signup_success_returns_token_when_verification_is_disabled(): void
     {
+        Mail::fake();
+
         $response = $this->postJson('/api/v1/auth/signup', [
             'name' => 'Alex Doe',
             'email' => 'alex@example.com',
@@ -63,6 +66,7 @@ class PhaseTwoAuthTest extends TestCase
             'email' => 'alex@example.com',
             'user_type' => 'customer',
         ]);
+        Mail::assertNothingSent();
     }
 
     public function test_signup_validation_failure_is_machine_readable(): void
@@ -78,6 +82,8 @@ class PhaseTwoAuthTest extends TestCase
 
     public function test_login_success_returns_bearer_token_and_user_summary(): void
     {
+        Mail::fake();
+
         $user = $this->createUser([
             'email' => 'alex@example.com',
             'password' => Hash::make('secret123'),
@@ -99,6 +105,66 @@ class PhaseTwoAuthTest extends TestCase
 
         $this->assertNotNull($response->json('access_token'));
         $this->assertSame(1, $user->fresh()->tokens()->count());
+        Mail::assertNothingSent();
+    }
+
+    public function test_signup_requires_verification_when_email_otp_is_enabled(): void
+    {
+        Mail::fake();
+        $this->setSetting('customer_otp_with', 'email');
+
+        $response = $this->postJson('/api/v1/auth/signup', [
+            'name' => 'Alex Doe',
+            'email' => 'alex@example.com',
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+            'device_name' => 'frontend-web',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('verified', false)
+            ->assertJsonPath('requires_verification', true)
+            ->assertJsonPath('verification_channel', 'email')
+            ->assertJsonPath('verification_target', 'alex@example.com')
+            ->assertJsonPath('access_token', null);
+
+        Mail::assertSent(EmailManager::class);
+    }
+
+    public function test_login_requires_verification_when_email_otp_is_enabled(): void
+    {
+        Mail::fake();
+        $this->setSetting('customer_otp_with', 'email');
+
+        $user = $this->createUser([
+            'email' => 'alex@example.com',
+            'password' => Hash::make('secret123'),
+            'email_verified_at' => null,
+        ]);
+
+        $response = $this->postJson('/api/v1/auth/login', [
+            'email' => 'alex@example.com',
+            'password' => 'secret123',
+            'form_type' => 'customer',
+            'device_name' => 'frontend-web',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('verified', false)
+            ->assertJsonPath('requires_verification', true)
+            ->assertJsonPath('verification_channel', 'email')
+            ->assertJsonPath('verification_target', 'alex@example.com')
+            ->assertJsonPath('access_token', null);
+
+        $this->assertDatabaseHas('auth_codes', [
+            'user_id' => $user->id,
+            'purpose' => 'verification',
+            'channel' => 'email',
+            'target' => 'alex@example.com',
+        ]);
+        Mail::assertSent(EmailManager::class);
     }
 
     public function test_login_invalid_credentials_returns_explicit_failure(): void
@@ -286,7 +352,51 @@ class PhaseTwoAuthTest extends TestCase
             'purpose' => 'verification',
             'target' => 'alex@example.com',
         ]);
-        Mail::assertQueued(EmailManager::class);
+        Mail::assertSent(EmailManager::class);
+    }
+
+    public function test_signup_uses_sms_channel_when_phone_otp_is_enabled(): void
+    {
+        $this->setSetting('customer_login_with', 'phone');
+        $this->setSetting('customer_otp_with', 'phone');
+
+        $smsService = Mockery::mock(\App\Http\Services\SmsServices::class);
+        $smsService->shouldReceive('phoneVerificationSms')->once()->andReturn(true);
+        $this->app->instance(\App\Http\Services\SmsServices::class, $smsService);
+
+        $response = $this->postJson('/api/v1/auth/signup', [
+            'name' => 'Alex Doe',
+            'phone' => '+2348012345678',
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('verified', false)
+            ->assertJsonPath('requires_verification', true)
+            ->assertJsonPath('verification_channel', 'phone')
+            ->assertJsonPath('verification_target', '+2348012345678');
+    }
+
+    public function test_otp_delivery_failure_returns_explicit_error(): void
+    {
+        $this->setSetting('customer_login_with', 'phone');
+        $this->setSetting('customer_otp_with', 'phone');
+
+        $smsService = Mockery::mock(\App\Http\Services\SmsServices::class);
+        $smsService->shouldReceive('phoneVerificationSms')->once()->andReturn(false);
+        $this->app->instance(\App\Http\Services\SmsServices::class, $smsService);
+
+        $response = $this->postJson('/api/v1/auth/signup', [
+            'name' => 'Alex Doe',
+            'phone' => '+2348012345678',
+            'password' => 'secret123',
+            'password_confirmation' => 'secret123',
+        ]);
+
+        $response->assertStatus(503)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'Unable to send verification code at the moment.');
     }
 
     public function test_password_create_issues_reset_code(): void
@@ -310,7 +420,7 @@ class PhaseTwoAuthTest extends TestCase
             'purpose' => 'password_reset',
             'target' => 'alex@example.com',
         ]);
-        Mail::assertQueued(EmailManager::class);
+        Mail::assertSent(EmailManager::class);
     }
 
     public function test_password_reset_updates_password_and_invalidates_existing_tokens(): void

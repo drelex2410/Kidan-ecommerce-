@@ -12,11 +12,18 @@ class AuthResponseResource extends JsonResource
         $user = $this->resource['user'];
         $token = $this->resource['token'] ?? null;
         $followedShops = $this->resource['followed_shops'] ?? [];
+        $verified = (bool) ($this->resource['verified'] ?? false);
+        $requiresVerification = (bool) ($this->resource['requires_verification'] ?? !$verified);
+        $verificationChannel = $this->resource['channel'] ?? null;
+        $verificationTarget = $this->resource['target'] ?? null;
 
         return [
             'success' => true,
             'message' => $this->resource['message'],
-            'verified' => $this->resource['verified'],
+            'verified' => $verified,
+            'requires_verification' => $requiresVerification,
+            'verification_channel' => $verificationChannel,
+            'verification_target' => $verificationTarget,
             'access_token' => $token,
             'token_type' => $token ? 'Bearer' : null,
             'expires_at' => null,
@@ -26,6 +33,10 @@ class AuthResponseResource extends JsonResource
                 'token' => $token,
                 'token_type' => $token ? 'Bearer' : null,
                 'expires_at' => null,
+                'verified' => $verified,
+                'requires_verification' => $requiresVerification,
+                'verification_channel' => $verificationChannel,
+                'verification_target' => $verificationTarget,
                 'user' => new AuthUserResource($user),
                 'followed_shops' => $followedShops,
             ],

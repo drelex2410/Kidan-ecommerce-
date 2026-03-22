@@ -25,6 +25,9 @@ class VerifyController extends Controller
         return new AuthResponseResource([
             'message' => 'Account verified successfully.',
             'verified' => true,
+            'requires_verification' => false,
+            'channel' => $result['channel'] ?? null,
+            'target' => $result['target'] ?? null,
             'token' => $result['token'],
             'user' => $result['user'],
             'followed_shops' => $result['user']->followed_shops()->pluck('shops.id')->values()->all(),

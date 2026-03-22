@@ -242,10 +242,7 @@ export default {
             this.loading = true;
             const res = await this.call_api("post", "auth/login", this.form);
             if (res.data.success) {
-                if (
-                    res.data.verified == true ||
-                    this.authSettings.customer_otp_with == "disabled"
-                ) {
+                if (res.data.verified === true) {
                     if (this.getTempUserId) {
                         this.removeTempUserId();
                     }
@@ -257,19 +254,21 @@ export default {
                     this.fetchCartProducts();
                     this.$router.push(this.$route.query.redirect || { name: "DashBoard" });
                 } else {
-                    if (
-                        this.authSettings.customer_login_with == "email" ||
-                        (this.authSettings.customer_login_with == "email_phone" &&
-                            this.authSettings.customer_otp_with == "email")
-                    ) {
+                    if (res.data.verification_channel === "email") {
                         this.$router.push({
                             name: "VerifyAccount",
-                            params: { email: this.form.email },
+                            params: {
+                                email: res.data.verification_target || this.form.email,
+                                channel: "email",
+                            },
                         });
                     } else {
                         this.$router.push({
                             name: "VerifyAccount",
-                            params: { phone: this.form.phone },
+                            params: {
+                                phone: res.data.verification_target || this.form.phone,
+                                channel: "phone",
+                            },
                         });
                     }
                 }

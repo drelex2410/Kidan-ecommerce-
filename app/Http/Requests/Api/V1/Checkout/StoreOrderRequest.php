@@ -55,7 +55,6 @@ class StoreOrderRequest extends FormRequest
                 'guest_country_id',
                 'guest_state_id',
                 'guest_city_id',
-                'guest_postal_code',
             ] as $field) {
                 if (blank($this->input($field))) {
                     $validator->errors()->add($field, "The {$field} field is required for guest checkout.");

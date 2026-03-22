@@ -1069,7 +1069,6 @@ export default {
           this.guestForm.phone &&
           this.effectiveGuestPhone &&
           this.guestForm.address &&
-          this.guestForm.postal_code &&
           this.guestForm.country_id &&
           this.guestForm.state_id &&
           this.guestForm.city_id;

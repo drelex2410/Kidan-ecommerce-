@@ -115,18 +115,18 @@
               />
             </div>
             <div class="checkout-form-field">
-              <label>City</label>
-              <input
-                class="checkout-input checkout-input--readonly"
-                :value="selectedShippingAddressPreview.city || ''"
-                readonly
-              />
-            </div>
-            <div class="checkout-form-field">
               <label>State</label>
               <input
                 class="checkout-input checkout-input--readonly"
                 :value="selectedShippingAddressPreview.state || ''"
+                readonly
+              />
+            </div>
+            <div class="checkout-form-field">
+              <label>City</label>
+              <input
+                class="checkout-input checkout-input--readonly"
+                :value="selectedShippingAddressPreview.city || ''"
                 readonly
               />
             </div>
@@ -196,26 +196,6 @@
               />
             </div>
             <div class="checkout-form-field">
-              <label>City</label>
-              <div class="checkout-select-wrap">
-                <select
-                  v-model="guestForm.city_id"
-                  class="checkout-input"
-                  @change="guestShippingChanged"
-                >
-                  <option :value="null">Select city</option>
-                  <option
-                    v-for="city in filteredCities"
-                    :key="city.id"
-                    :value="city.id"
-                  >
-                    {{ city.name }}
-                  </option>
-                </select>
-                <i class="las la-angle-down"></i>
-              </div>
-            </div>
-            <div class="checkout-form-field">
               <label>State</label>
               <div class="checkout-select-wrap">
                 <select
@@ -230,6 +210,26 @@
                     :value="state.id"
                   >
                     {{ state.name }}
+                  </option>
+                </select>
+                <i class="las la-angle-down"></i>
+              </div>
+            </div>
+            <div class="checkout-form-field">
+              <label>City</label>
+              <div class="checkout-select-wrap">
+                <select
+                  v-model="guestForm.city_id"
+                  class="checkout-input"
+                  @change="guestShippingChanged"
+                >
+                  <option :value="null">Select city</option>
+                  <option
+                    v-for="city in filteredCities"
+                    :key="city.id"
+                    :value="city.id"
+                  >
+                    {{ city.name }}
                   </option>
                 </select>
                 <i class="las la-angle-down"></i>
@@ -1234,17 +1234,33 @@ export default {
     },
   },
   async created() {
-    await this.fetchPickupPoints();
+    if (this.generalSettings.pickup_point) {
+      try {
+        await this.fetchPickupPoints();
+      } catch (error) {
+        console.error("Unable to load pickup points for checkout.", error);
+      }
+    }
+
     if (this.isAuthenticated) {
-      await this.fetchAddresses();
-      this.selectedShippingAddressId = this.getDefaultShippingAddress?.id ?? null;
-      this.selectedBillingAddressId = this.getDefaultBillingAddress?.id ?? this.selectedShippingAddressId;
-      if (this.selectedShippingAddressId) {
-        this.getShippingCost(this.selectedShippingAddressId);
+      try {
+        await this.fetchAddresses();
+        this.selectedShippingAddressId = this.getDefaultShippingAddress?.id ?? null;
+        this.selectedBillingAddressId =
+          this.getDefaultBillingAddress?.id ?? this.selectedShippingAddressId;
+        if (this.selectedShippingAddressId) {
+          this.getShippingCost(this.selectedShippingAddressId);
+        }
+      } catch (error) {
+        console.error("Unable to load saved checkout addresses.", error);
       }
     } else {
-      await this.fetchCountries();
-      this.syncGuestContactPhone();
+      try {
+        await this.fetchCountries();
+        this.syncGuestContactPhone();
+      } catch (error) {
+        console.error("Unable to load checkout countries.", error);
+      }
     }
 
     const dateArray = [];
@@ -1275,6 +1291,12 @@ export default {
     }
     this.rechargeWallet(this.$route.query.wallet_payment);
     this.fetchCartProducts();
+
+    if (!this.isAuthenticated && this.countries.length === 0) {
+      this.fetchCountries().catch((error) => {
+        console.error("Retry failed while loading checkout countries.", error);
+      });
+    }
   },
 };
 </script>

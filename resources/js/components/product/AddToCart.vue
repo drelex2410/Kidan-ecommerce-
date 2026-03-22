@@ -600,6 +600,7 @@ export default {
   props: {
     isLoading: { type: Boolean, required: true, default: true },
     productDetails: { type: Object, required: true, default: {} },
+    intent: { type: String, default: "cart" },
   },
   data: () => ({
     isBuyNow:false,
@@ -741,7 +742,7 @@ export default {
         message: this.$i18n.t("product_added_to_cart"),
         color: "green",
       });
-      this.showAddToCartDialog({status:false,slug:null});
+      this.showAddToCartDialog({status:false,slug:null,mode:"cart"});
       return true;
     },
     async buyNow(){

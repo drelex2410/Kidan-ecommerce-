@@ -62,7 +62,7 @@
                 type="button"
                 :disabled="isOutOfStock"
                 :aria-label="$t('add_to_cart')"
-                @click="handleAddToCart"
+                @click.prevent.stop="handleAddToCart"
               >
                 <i class="las la-shopping-cart"></i>
               </button>
@@ -70,7 +70,7 @@
                 class="lv-quick-buy"
                 type="button"
                 :disabled="isOutOfStock"
-                @click="handleBuyNow"
+                @click.prevent.stop="handleBuyNow"
               >
                 {{ $t("buy_now") }}
               </button>
@@ -256,6 +256,9 @@ export default {
     isOutOfStock() {
       return !this.productDetails?.stock;
     },
+    requiresOptionSelection() {
+      return Number(this.productDetails?.is_variant) === 1;
+    },
     defaultVariation() {
       return Array.isArray(this.productDetails?.variations)
         ? this.productDetails.variations[0] || null
@@ -291,10 +294,11 @@ export default {
 
       return alternates[Math.floor(Math.random() * alternates.length)];
     },
-    openPurchaseDialog() {
+    openPurchaseDialog(mode = "cart") {
       this.showAddToCartDialog({
         status: true,
         slug: this.productDetails.slug,
+        mode,
       });
     },
     checkQuickPurchaseLimit(variationId) {
@@ -380,16 +384,16 @@ export default {
       return true;
     },
     async handleAddToCart() {
-      if (this.productDetails.is_variant) {
-        this.openPurchaseDialog();
+      if (this.requiresOptionSelection) {
+        this.openPurchaseDialog("cart");
         return;
       }
 
       await this.addSimpleProductToCart();
     },
     async handleBuyNow() {
-      if (this.productDetails.is_variant) {
-        this.openPurchaseDialog();
+      if (this.requiresOptionSelection) {
+        this.openPurchaseDialog("buy_now");
         return;
       }
 

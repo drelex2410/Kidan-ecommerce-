@@ -7,13 +7,13 @@
     >
         <v-card>
             <v-toolbar color="grey-lighten-4 " class="d-block" dense flat>
-                <v-toolbar-title class="fw-600">{{  $t('add_to_cart') }}</v-toolbar-title>
+                <v-toolbar-title class="fw-600">{{ dialogTitle }}</v-toolbar-title>
                 <v-btn icon fab small class="ms-auto" @click="hideDialog">
                     <i class="las la-times fs-24"></i>
                 </v-btn>
             </v-toolbar>
             <v-card-text class="pa-4 text-dark"> 
-                <add-to-cart :is-loading="loading" :product-details="productDetails" />
+                <add-to-cart :is-loading="loading" :product-details="productDetails" :intent="dialogMode" />
             </v-card-text>
         </v-card>
     </v-dialog>
@@ -31,8 +31,12 @@ export default {
     computed:{
         ...mapGetters('auth', {
             cartDialog:'showAddToCartDialog',
-            productSlug:'cartDialogProductSlug'
+            productSlug:'cartDialogProductSlug',
+            dialogMode:'cartDialogMode'
         }),
+        dialogTitle() {
+            return this.dialogMode === 'buy_now' ? this.$t('buy_now') : this.$t('add_to_cart');
+        }
     },
     watch: {
         productSlug: {
@@ -45,7 +49,7 @@ export default {
     methods:{
         ...mapMutations('auth',['showAddToCartDialog']),
         hideDialog(){
-            this.showAddToCartDialog({status:false,slug:null})
+            this.showAddToCartDialog({status:false,slug:null,mode:'cart'})
             this.loading = true
         },
         async getDetails() {

@@ -129,8 +129,11 @@ export default {
     ...mapGetters("app", ["appLogo", "appName"]),
     ...mapGetters("auth", ["isAuthenticated", "currentUser"]),
     ...mapGetters("cart", ["getCartCount", "getCartPrice", "getTotalCouponDiscount"]),
+    hasStaticNonHomeHeader() {
+      return !this.isHomePage;
+    },
     isHeaderActive() {
-      return this.isHovered || this.isScrolled;
+      return this.hasStaticNonHomeHeader || this.isHovered || this.isScrolled;
     },
     cartDrawerOpen: {
       get() {
@@ -196,11 +199,20 @@ export default {
       this.$router.push({ name: "Home" }).catch(() => { });
     },
     handleHeaderMouseEnter() {
+      if (this.hasStaticNonHomeHeader) {
+        this.clearHideTimer();
+        this.showCategories = true;
+        return;
+      }
       this.isHovered = true;
       this.clearHideTimer();
       this.showCategories = true;
     },
     handleHeaderMouseLeave() {
+      if (this.hasStaticNonHomeHeader) {
+        this.startHideTimer();
+        return;
+      }
       this.isHovered = false;
       this.startHideTimer();
     },
@@ -279,6 +291,11 @@ export default {
 .logobar:not(.home-page) {
   position: sticky !important;
   top: 0 !important;
+  background: #FFFBF3 !important;
+  --header-fg: #1a1a1a;
+  --header-logo-filter: brightness(0) saturate(100%);
+  box-shadow: none;
+  border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
 .logobar.home-page {
@@ -292,6 +309,12 @@ export default {
   background: #FFFBF3 !important;
   box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
   border-bottom-color: rgba(0, 0, 0, 0.08);
+}
+
+.logobar:not(.home-page).scrolled,
+.logobar:not(.home-page).header-active {
+  background: #FFFBF3 !important;
+  box-shadow: none;
 }
 
 .top-bar {

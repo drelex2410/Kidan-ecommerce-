@@ -9,6 +9,14 @@ use Illuminate\Http\Request;
 
 class AttributeValueController extends Controller
 {
+  private function defaultLanguage(): string
+  {
+    return (string) (config('app.locale')
+      ?: config('app.fallback_locale')
+      ?: env('DEFAULT_LANGUAGE')
+      ?: 'en');
+  }
+
   /**
    * Display a listing of the resource.
    *
@@ -36,12 +44,17 @@ class AttributeValueController extends Controller
    */
   public function store(Request $request)
   {
+    $defaultLanguage = $this->defaultLanguage();
+
     $attribute_value                = new AttributeValue;
     $attribute_value->attribute_id  = $request->attribute_id;
     $attribute_value->name          = $request->name;
     $attribute_value->save();
 
-    $attribute_value_translation = AttributeValueTranslation::firstOrNew(['lang' => env('DEFAULT_LANGUAGE'), 'attribute_value_id' => $attribute_value->id]);
+    $attribute_value_translation = AttributeValueTranslation::firstOrNew([
+      'lang' => $defaultLanguage,
+      'attribute_value_id' => $attribute_value->id,
+    ]);
     $attribute_value_translation->name = $request->name;
     $attribute_value_translation->save();
 
@@ -83,13 +96,19 @@ class AttributeValueController extends Controller
    */
   public function update(Request $request, $id)
   {
+    $defaultLanguage = $this->defaultLanguage();
+    $lang = $request->lang ?: $defaultLanguage;
+
     $attribute_value = AttributeValue::findOrFail($id);
-    if ($request->lang == env("DEFAULT_LANGUAGE")) {
+    if ($lang == $defaultLanguage) {
       $attribute_value->name = $request->name;
     }
     $attribute_value->save();
 
-    $attribute_value_translation = AttributeValueTranslation::firstOrNew(['lang' => $request->lang, 'attribute_value_id' => $attribute_value->id]);
+    $attribute_value_translation = AttributeValueTranslation::firstOrNew([
+      'lang' => $lang,
+      'attribute_value_id' => $attribute_value->id,
+    ]);
     $attribute_value_translation->name = $request->name;
     $attribute_value_translation->save();
 

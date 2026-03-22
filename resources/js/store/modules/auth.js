@@ -9,6 +9,7 @@ const loadState = () => ({
     showAddToCartDialog: false,
     showConversationDialog: false,
     cartDialogProductSlug: null,
+    cartDialogMode: 'cart',
     accessToken: localStorage.getItem('shopAccessToken') || null,
     currentUser: {},
     sociaLoginStatus: null,
@@ -39,6 +40,9 @@ export default {
         cartDialogProductSlug(state) {
             return state.cartDialogProductSlug;
         },
+        cartDialogMode(state) {
+            return state.cartDialogMode;
+        },
         isAuthenticated(state) {
             return state.accessToken !== null;
         },
@@ -68,9 +72,10 @@ export default {
         showLoginDialog(state, status) {
             state.showLoginDialog = status;
         },
-        showAddToCartDialog(state, { status, slug }) {
+        showAddToCartDialog(state, { status, slug, mode = 'cart' }) {
             state.showAddToCartDialog = status;
             state.cartDialogProductSlug = slug;
+            state.cartDialogMode = mode;
         },
         showConversationDialog(state, { status }) { 
                 state.showConversationDialog = status; 

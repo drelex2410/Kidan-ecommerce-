@@ -101,6 +101,11 @@ export default {
             }
         },
     },
+    created() {
+        if (this.$route.query.orderCode) {
+            this.form.orderCode = this.$route.query.orderCode;
+        }
+    },
 };
 </script>
 

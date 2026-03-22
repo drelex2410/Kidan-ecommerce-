@@ -658,7 +658,7 @@ export default {
     ...mapActions("auth", ["showConversationDialog"]),
     ...mapMutations("auth", ["updateChatWindow","showAddToCartDialog"]),
 
-    addCart() {
+    async addCart() {
 
       if (this.isAuthenticated && this.currentUser.user_type != "customer") {
         this.snack({
@@ -667,7 +667,7 @@ export default {
           ),
           color: "red",
         });
-        return;
+        return false;
       }
       if (this.productDetails.is_variant == 1) {
         // for variant product
@@ -682,7 +682,7 @@ export default {
             message: this.$i18n.t("please_select_all_options"),
             color: "red",
           });
-          return;
+          return false;
         }
       }
 
@@ -693,7 +693,7 @@ export default {
           message: this.$i18n.t("this_product_is_out_of_stock"),
           color: "red",
         });
-        return;
+        return false;
       }
 
       if (this.selectedVariation.current_stock != null && this.selectedVariation.current_stock < this.cartQuantity) {
@@ -702,7 +702,7 @@ export default {
           message: this.$i18n.t("this_product_is_out_of_stock"),
           color: "red",
         });
-        return;
+        return false;
       }
       if (this.selectedVariation.current_stock != null && this.selectedVariation.current_stock < this.productDetails.min_qty ) {
         // selected variation stock check
@@ -710,7 +710,7 @@ export default {
           message: this.$i18n.t("this_product_is_out_of_stock"),
           color: "red",
         });
-        return;
+        return false;
       }
 
       let minMaxCheck = this.checkMinMaxLimit(this.selectedVariation.id);
@@ -730,23 +730,23 @@ export default {
           message: message,
           color: "red",
         });
-        return;
+        return false;
       }
 
-      this.addToCart({
+      await this.addToCart({
         variation_id: this.selectedVariation.id,
         qty: this.cartQuantity,
       });
-      this.isBuyNow = true;
       this.snack({
         message: this.$i18n.t("product_added_to_cart"),
         color: "green",
       });
-      this.showAddToCartDialog({status:false,slug:null})
+      this.showAddToCartDialog({status:false,slug:null});
+      return true;
     },
-    buyNow(){
-      this.addCart();
-      if(this.isBuyNow){
+    async buyNow(){
+      const added = await this.addCart();
+      if(added){
         this.$router.push({ name: "Checkout" });
       }
     },

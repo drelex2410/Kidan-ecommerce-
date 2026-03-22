@@ -436,7 +436,7 @@ export default {
         meta: [{ name: "description", content: description }],
       });
     },
-    addCart() {
+    async addCart() {
       if (this.isAuthenticated && this.currentUser.user_type != "customer") {
         this.snack({
           message: this.$i18n.t(
@@ -444,7 +444,7 @@ export default {
           ),
           color: "red",
         });
-        return;
+        return false;
       }
       if (this.isVariantProduct) {
         let chooseOptions = this.chooseOptions.filter((el) => el != "");
@@ -456,7 +456,7 @@ export default {
             message: this.$i18n.t("please_select_all_options"),
             color: "red",
           });
-          return;
+          return false;
         }
       }
 
@@ -465,7 +465,7 @@ export default {
           message: this.$i18n.t("this_product_is_out_of_stock"),
           color: "red",
         });
-        return;
+        return false;
       }
 
       if (
@@ -476,7 +476,7 @@ export default {
           message: this.$i18n.t("this_product_is_out_of_stock"),
           color: "red",
         });
-        return;
+        return false;
       }
       if (
         this.selectedVariationData?.current_stock != null &&
@@ -486,7 +486,7 @@ export default {
           message: this.$i18n.t("this_product_is_out_of_stock"),
           color: "red",
         });
-        return;
+        return false;
       }
 
       let minMaxCheck = this.checkMinMaxLimit(this.selectedVariationData?.id);
@@ -506,23 +506,23 @@ export default {
           message: message,
           color: "red",
         });
-        return;
+        return false;
       }
 
-      this.addToCart({
+      await this.addToCart({
         variation_id: this.selectedVariationData.id,
         qty: this.cartQuantity,
       });
-      this.isBuyNow = true;
       this.snack({
         message: this.$i18n.t("product_added_to_cart"),
         color: "green",
       });
       this.showAddToCartDialog({ status: false, slug: null });
+      return true;
     },
-    buyNow() {
-      this.addCart();
-      if (this.isBuyNow) {
+    async buyNow() {
+      const added = await this.addCart();
+      if (added) {
         this.$router.push({ name: "Checkout" });
       }
     },

@@ -65,6 +65,7 @@
                 @click="handleAddToCart"
               >
                 <i class="las la-shopping-cart"></i>
+                <span>{{ $t("add_to_cart") }}</span>
               </button>
               <button
                 class="lv-quick-buy"
@@ -614,21 +615,15 @@ export default {
   right: 14px;
   bottom: 14px;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: stretch;
   gap: 10px;
-  opacity: 0;
-  transform: translateY(22px);
-  pointer-events: none;
-  z-index: 4;
-  transition: opacity 0.35s ease,
-    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.product-box-one .lv-product-card:hover .lv-product-actions {
   opacity: 1;
   transform: translateY(0);
   pointer-events: auto;
+  z-index: 4;
+  transition: opacity 0.35s ease,
+    transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .lv-quick-action,
@@ -645,7 +640,8 @@ export default {
 }
 
 .lv-quick-cart {
-  width: 48px;
+  width: auto;
+  min-width: 146px;
   height: 48px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.96);
@@ -653,13 +649,22 @@ export default {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  gap: 9px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0 18px;
   box-shadow: 0 18px 35px rgba(28, 22, 14, 0.16);
   flex-shrink: 0;
 }
 
+.lv-quick-cart span {
+  white-space: nowrap;
+}
+
 .lv-quick-buy {
-  width: 100%;
+  flex: 1 1 auto;
   height: 48px;
   border-radius: 999px;
   background: rgba(17, 15, 10, 0.92);
@@ -759,8 +764,8 @@ export default {
   }
 
   .lv-quick-cart {
-    width: 44px;
-    font-size: 18px;
+    min-width: 132px;
+    font-size: 12px;
   }
 }
 
@@ -812,12 +817,19 @@ export default {
     left: 10px;
     right: 10px;
     bottom: 10px;
+    flex-direction: column;
   }
 
   .lv-quick-buy {
     font-size: 10px;
     letter-spacing: 0.12em;
     padding: 0 14px;
+  }
+
+  .lv-quick-cart {
+    width: 100%;
+    min-width: 0;
+    gap: 8px;
   }
 }
 

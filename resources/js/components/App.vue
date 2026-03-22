@@ -60,7 +60,9 @@
       <AddToCartDialog v-if="!$route.meta.hideLayout" />
 
       <!-- LOGIN POPUP (DISABLED ON LOGIN PAGE) -->
-      <LoginDialog v-if="!isAuthenticated && !$route.meta.hideLayout" />
+      <LoginDialog
+        v-if="!isAuthenticated && !$route.meta.hideLayout && !$route.meta.disableLoginDialog"
+      />
 
       <!-- MOBILE MENU -->
       <MobileMenu v-if="!$route.meta.hideLayout" class="d-lg-none user-side-nav" />

@@ -148,7 +148,6 @@ import {
   minLength,
   required,
   requiredIf,
-  sameAs,
 } from "@vuelidate/validators";
 import { VueTelInput } from "vue-tel-input";
 import { mapActions, mapGetters, mapMutations } from "vuex";
@@ -208,14 +207,30 @@ export default {
           );
         }),
       },
-      password: { required, minLength: minLength(6) },
+      password: {
+        required,
+        minLength: helpers.withMessage(
+          "Password must be at least 8 characters.",
+          minLength(8)
+        ),
+        mediumStrength: helpers.withMessage(
+          "Password must include uppercase, lowercase, and a number.",
+          (value) => {
+            if (!value) {
+              return true;
+            }
+
+            return /[A-Z]/.test(value) && /[a-z]/.test(value) && /[0-9]/.test(value);
+          }
+        ),
+      },
       password_confirmation: {
         required,
         sameAsPassword: helpers.withMessage(
           "Password confirmation must match password.",
-          sameAs(function () {
-            return this.form.password;
-          })
+          function (value) {
+            return value === this.form.password;
+          }
         ),
       },
     },

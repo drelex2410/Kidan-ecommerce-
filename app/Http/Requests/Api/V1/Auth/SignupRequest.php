@@ -27,9 +27,18 @@ class SignupRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'email' => array_merge($emailRequired, ['email', Rule::unique(User::class, 'email')]),
             'phone' => array_merge($phoneRequired, ['string', Rule::unique(User::class, 'phone')]),
-            'password' => ['required', 'string', 'min:6', 'confirmed'],
+            'password' => ['required', 'string', 'min:8', 'confirmed', 'regex:/[A-Z]/', 'regex:/[a-z]/', 'regex:/[0-9]/'],
             'temp_user_id' => ['nullable'],
             'device_name' => ['nullable', 'string', 'max:255'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'password.min' => 'Password must be at least 8 characters.',
+            'password.regex' => 'Password must contain uppercase, lowercase and a number.',
+            'password.confirmed' => 'Password confirmation does not match.',
         ];
     }
 }

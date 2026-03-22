@@ -45,8 +45,8 @@ class PhaseTwoAuthTest extends TestCase
         $response = $this->postJson('/api/v1/auth/signup', [
             'name' => 'Alex Doe',
             'email' => 'alex@example.com',
-            'password' => 'secret123',
-            'password_confirmation' => 'secret123',
+            'password' => 'Test1234',
+            'password_confirmation' => 'Test1234',
             'device_name' => 'frontend-web',
         ]);
 
@@ -78,6 +78,19 @@ class PhaseTwoAuthTest extends TestCase
 
         $response->assertStatus(422)
             ->assertJsonValidationErrors(['name', 'email', 'password']);
+    }
+
+    public function test_signup_rejects_weak_passwords(): void
+    {
+        $response = $this->postJson('/api/v1/auth/signup', [
+            'name' => 'Alex Doe',
+            'email' => 'alex@example.com',
+            'password' => '12345678',
+            'password_confirmation' => '12345678',
+        ]);
+
+        $response->assertStatus(422)
+            ->assertJsonValidationErrors(['password']);
     }
 
     public function test_login_success_returns_bearer_token_and_user_summary(): void
@@ -116,8 +129,8 @@ class PhaseTwoAuthTest extends TestCase
         $response = $this->postJson('/api/v1/auth/signup', [
             'name' => 'Alex Doe',
             'email' => 'alex@example.com',
-            'password' => 'secret123',
-            'password_confirmation' => 'secret123',
+            'password' => 'Test1234',
+            'password_confirmation' => 'Test1234',
             'device_name' => 'frontend-web',
         ]);
 
@@ -367,8 +380,8 @@ class PhaseTwoAuthTest extends TestCase
         $response = $this->postJson('/api/v1/auth/signup', [
             'name' => 'Alex Doe',
             'phone' => '+2348012345678',
-            'password' => 'secret123',
-            'password_confirmation' => 'secret123',
+            'password' => 'Test1234',
+            'password_confirmation' => 'Test1234',
         ]);
 
         $response->assertOk()
@@ -390,8 +403,8 @@ class PhaseTwoAuthTest extends TestCase
         $response = $this->postJson('/api/v1/auth/signup', [
             'name' => 'Alex Doe',
             'phone' => '+2348012345678',
-            'password' => 'secret123',
-            'password_confirmation' => 'secret123',
+            'password' => 'Test1234',
+            'password_confirmation' => 'Test1234',
         ]);
 
         $response->assertStatus(503)

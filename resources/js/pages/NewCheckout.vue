@@ -592,6 +592,7 @@
         :points="getCartClubPoints"
         :shipping-label="summaryShippingLabel"
         :total="totalPrice"
+        :cart-items="getCartProducts"
       />
       </aside>
     </div>

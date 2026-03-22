@@ -37,7 +37,8 @@ export default {
         ...mapGetters("cart", [
             "getCouponCode",
             "getSelectedCartIds",
-            "getSelectedCartIdsByShopId"
+            "getSelectedCartIdsByShopId",
+            "getTempUserId"
         ]),
         ...mapGetters("auth", ["isAuthenticated"]),
     },
@@ -48,31 +49,37 @@ export default {
         ]),
         ...mapMutations("auth", ["showLoginDialog"]),
         async applyCoupon() {
-            if (this.isAuthenticated) {
-                if (!this.couponCode) return;
+            if (!this.couponCode) return;
 
-                this.couponLoading = true;
-                let data = {
-                    coupon_code: this.couponCode,
-                    shop_id: this.shopId,
-                    cart_item_ids: this.shopId ? this.getSelectedCartIdsByShopId(this.shopId) : this.getSelectedCartIds,
-                };
-                const res = await this.call_api( "post", "checkout/coupon/apply", data );
+            const cartItemIds = this.shopId
+                ? this.getSelectedCartIdsByShopId(this.shopId)
+                : this.getSelectedCartIds;
 
-                if (res.data.success) {
-                    this.snack({ message: res.data.message });
-                    this.saveCoupon({
-                        shopId: this.shopId,
-                        couponCode: this.couponCode,
-                        couponDetails: res.data.coupon_details,
-                    });
-                } else {
-                    this.snack({ message: res.data.message, color: "red" });
-                }
-                this.couponLoading = false;
-            } else {
-                this.showLoginDialog(true);
+            if (!cartItemIds.length) {
+                this.snack({ message: this.$i18n.t("please_select_a_cart_product"), color: "red" });
+                return;
             }
+
+            this.couponLoading = true;
+            const data = {
+                coupon_code: this.couponCode,
+                shop_id: this.shopId,
+                cart_item_ids: cartItemIds,
+                temp_user_id: this.isAuthenticated ? null : this.getTempUserId,
+            };
+            const res = await this.call_api("post", "checkout/coupon/apply", data);
+
+            if (res.data.success) {
+                this.snack({ message: res.data.message });
+                this.saveCoupon({
+                    shopId: this.shopId,
+                    couponCode: this.couponCode,
+                    couponDetails: res.data.coupon_details,
+                });
+            } else {
+                this.snack({ message: res.data.message, color: "red" });
+            }
+            this.couponLoading = false;
         },
         removeCoupon() {
             this.couponCode = null;

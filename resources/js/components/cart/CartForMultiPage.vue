@@ -80,10 +80,9 @@
             </div>
 
             <v-btn
-              color="primary"
-              size="x-large"
               elevation="0"
               block
+              class="checkout-cta"
               @click="checkout"
             >
               PROCEED TO CHECKOUT
@@ -150,5 +149,18 @@ export default {
 .sticky-summary {
   position: sticky;
   top: 100px;
+}
+
+.checkout-cta {
+  min-height: 56px;
+  border-radius: 6px;
+  background: #8f0f0f !important;
+  color: #ffffff !important;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.checkout-cta :deep(.v-btn__content) {
+  color: #ffffff !important;
 }
 </style>

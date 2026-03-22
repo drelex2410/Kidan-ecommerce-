@@ -65,7 +65,6 @@
                 @click="handleAddToCart"
               >
                 <i class="las la-shopping-cart"></i>
-                <span>{{ $t("add_to_cart") }}</span>
               </button>
               <button
                 class="lv-quick-buy"
@@ -616,7 +615,8 @@ export default {
   bottom: 14px;
   display: flex;
   flex-direction: row;
-  align-items: stretch;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: 10px;
   opacity: 1;
   transform: translateY(0);
@@ -640,31 +640,27 @@ export default {
 }
 
 .lv-quick-cart {
-  width: auto;
-  min-width: 146px;
+  width: 48px;
+  min-width: 48px;
   height: 48px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.96);
+  background: rgba(255, 255, 255, 0.98);
   color: #1b1711;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
-  font-size: 14px;
+  gap: 0;
+  font-size: 18px;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 0 18px;
-  box-shadow: 0 18px 35px rgba(28, 22, 14, 0.16);
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 0;
+  box-shadow: 0 16px 30px rgba(28, 22, 14, 0.18);
   flex-shrink: 0;
 }
 
-.lv-quick-cart span {
-  white-space: nowrap;
-}
-
 .lv-quick-buy {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   height: 48px;
   border-radius: 999px;
   background: rgba(17, 15, 10, 0.92);
@@ -676,6 +672,9 @@ export default {
   text-transform: uppercase;
   padding: 0 18px;
   box-shadow: 0 18px 35px rgba(17, 15, 10, 0.24);
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
 }
 
 .lv-quick-action:not(:disabled):hover,
@@ -690,6 +689,13 @@ export default {
 
 .lv-quick-buy:not(:disabled):hover {
   background: rgba(137, 16, 5, 0.95);
+}
+
+.product-box-one .lv-product-card:hover .lv-quick-buy,
+.product-box-one .lv-product-card:focus-within .lv-quick-buy {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
 .lv-club-badge {
@@ -764,8 +770,9 @@ export default {
   }
 
   .lv-quick-cart {
-    min-width: 132px;
-    font-size: 12px;
+    width: 44px;
+    min-width: 44px;
+    font-size: 17px;
   }
 }
 
@@ -817,7 +824,7 @@ export default {
     left: 10px;
     right: 10px;
     bottom: 10px;
-    flex-direction: column;
+    align-items: flex-end;
   }
 
   .lv-quick-buy {
@@ -827,9 +834,8 @@ export default {
   }
 
   .lv-quick-cart {
-    width: 100%;
-    min-width: 0;
-    gap: 8px;
+    width: 42px;
+    min-width: 42px;
   }
 }
 
@@ -888,6 +894,7 @@ export default {
 
   .lv-quick-cart {
     width: 40px;
+    min-width: 40px;
     font-size: 16px;
   }
 
@@ -914,7 +921,7 @@ export default {
 }
 
 @media (hover: none) {
-  .lv-product-actions {
+  .lv-quick-buy {
     opacity: 1;
     transform: translateY(0);
     pointer-events: auto;

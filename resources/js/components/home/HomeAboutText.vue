@@ -220,7 +220,7 @@ export default {
 
 <style scoped>
 .hero-section {
-  min-height: 650px;
+  min-height: clamp(520px, 58vw, 680px);
   position: relative;
   overflow: hidden;
   background: #d4cdb8;
@@ -239,8 +239,8 @@ export default {
   position: absolute;
   left: 0;
   bottom: 0;
-  width: 32%;
-  height: 80%;
+  width: min(30%, 460px);
+  height: min(82%, 560px);
   background: #8B0000;
   border-radius: 0 300px 0 0;
   z-index: 1;
@@ -261,8 +261,8 @@ export default {
   position: absolute;
   right: 0;
   top: 0;
-  width: 25%;
-  height: 32%;
+  width: min(22%, 360px);
+  height: min(28%, 190px);
   background: #3a2820;
   clip-path: polygon(25% 0, 100% 0, 100% 100%, 60% 100%);
 }
@@ -273,10 +273,10 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 100px 80px;
-  min-height: 650px;
-  gap: 72px;
-  max-width: 1480px;
+  width: min(96%, 1540px);
+  padding: clamp(48px, 5vw, 88px) clamp(20px, 4.5vw, 72px);
+  min-height: clamp(520px, 58vw, 680px);
+  gap: clamp(32px, 4vw, 72px);
   margin: 0 auto;
 }
 
@@ -286,12 +286,13 @@ export default {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 650px;
+  min-height: clamp(520px, 58vw, 680px);
 }
 
 .text-content {
-  flex: 0 0 auto;
-  max-width: 500px;
+  flex: 0 1 42%;
+  max-width: 560px;
+  min-width: 0;
   color: #000;
 }
 
@@ -300,20 +301,24 @@ export default {
 }
 
 .text-content::v-deep h1 {
-  font-size: 48px;
+  font-size: clamp(2.7rem, 5vw, 5rem);
   font-weight: 700;
-  line-height: 1.1;
+  line-height: 1.05;
   margin-bottom: 24px;
   font-family: 'Arial Black', 'Arial Bold', sans-serif;
-  letter-spacing: -1px;
+  letter-spacing: -1.6px;
+  text-wrap: balance;
+  max-width: 10ch;
 }
 
 .text-content::v-deep h2 {
-  font-size: 36px;
+  font-size: clamp(2rem, 4vw, 3.8rem);
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.08;
   margin-bottom: 20px;
-  letter-spacing: -0.5px;
+  letter-spacing: -1px;
+  text-wrap: balance;
+  max-width: 11ch;
 }
 
 .text-content::v-deep h3 {
@@ -323,12 +328,13 @@ export default {
 }
 
 .text-content::v-deep p {
-  font-size: 18px;
+  font-size: clamp(1rem, 1.45vw, 1.35rem);
   color: #4a4a4a !important;
   font-weight: 400;
   margin-bottom: 16px;
-  line-height: 1.7;
+  line-height: 1.55;
   font-family: Arial, sans-serif;
+  max-width: 28ch;
 }
 
 .text-content::v-deep strong,
@@ -347,14 +353,16 @@ export default {
 }
 
 .media-container {
-  flex: 1;
-  max-width: 700px;
+  flex: 0 1 55%;
+  max-width: 830px;
+  min-width: 0;
   position: relative;
 }
 
 .media-wrapper {
   position: relative;
   width: 100%;
+  aspect-ratio: 16 / 9;
   border-radius: 24px;
   overflow: hidden;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
@@ -364,7 +372,7 @@ export default {
 .video-container {
   position: relative;
   width: 100%;
-  padding-bottom: 56.25%;
+  height: 100%;
   background: linear-gradient(135deg, #ffa726 0%, #fb8c00 100%);
 }
 
@@ -422,7 +430,7 @@ export default {
 .image-container {
   position: relative;
   width: 100%;
-  padding-bottom: 56.25%;
+  height: 100%;
   background: linear-gradient(135deg, #ffa726 0%, #fb8c00 100%);
 }
 
@@ -438,24 +446,31 @@ export default {
 
 @media (max-width: 1200px) {
   .content-wrapper {
-    padding: 80px 60px;
-    gap: 60px;
+    width: min(97%, 1440px);
+    padding: 64px 40px;
+    gap: 44px;
   }
   
   .text-content::v-deep h1 {
-    font-size: 60px;
+    max-width: 11ch;
   }
   
   .text-content::v-deep h2 {
-    font-size: 44px;
+    max-width: 12ch;
   }
 }
 
 @media (max-width: 960px) {
+  .hero-section {
+    min-height: unset;
+  }
+
   .content-wrapper {
     flex-direction: column;
-    padding: 60px 40px;
-    gap: 50px;
+    width: min(97%, 860px);
+    min-height: unset;
+    padding: 48px 24px 56px;
+    gap: 32px;
     text-align: center;
   }
   
@@ -464,53 +479,81 @@ export default {
   }
   
   .text-content::v-deep h1 {
-    font-size: 52px;
+    max-width: 100%;
   }
   
   .text-content::v-deep h2 {
-    font-size: 38px;
+    max-width: 100%;
+  }
+
+  .text-content::v-deep p {
+    max-width: 34ch;
+    margin-inline: auto;
   }
   
   .media-container {
+    width: 100%;
     max-width: min(100%, 760px);
   }
   
   .shape-red {
-    width: 50%;
-    top: 20%;
+    width: min(48%, 320px);
+    height: 56%;
+    left: -6%;
+    top: auto;
   }
   
   .shape-cream {
-    clip-path: polygon(0 0, 100% 0, 100% 65%, 0 75%);
+    clip-path: polygon(0 0, 100% 0, 100% 73%, 0 85%);
   }
   
   .shape-brown {
-    width: 40%;
-    height: 25%;
+    width: min(34%, 220px);
+    height: 18%;
   }
 }
 
 @media (max-width: 600px) {
   .content-wrapper {
-    padding: 40px 24px;
-    gap: 40px;
+    width: 100%;
+    padding: 36px 16px 44px;
+    gap: 24px;
   }
   
   .text-content::v-deep h1 {
-    font-size: 42px;
+    margin-bottom: 16px;
   }
   
   .text-content::v-deep h2 {
-    font-size: 32px;
+    margin-bottom: 14px;
   }
   
   .text-content::v-deep p {
-    font-size: 16px;
+    max-width: 100%;
   }
   
   .shape-red {
-    width: 60%;
-    left: -10%;
+    width: min(58%, 220px);
+    height: 40%;
+    left: -14%;
+    border-radius: 0 220px 0 0;
+  }
+
+  .shape-brown {
+    width: min(34%, 150px);
+    height: 14%;
+  }
+
+  .media-wrapper,
+  .video-poster,
+  .video-container iframe,
+  .hero-image {
+    border-radius: 18px;
+  }
+
+  .play-button svg {
+    width: 60px;
+    height: 60px;
   }
 }
 </style>

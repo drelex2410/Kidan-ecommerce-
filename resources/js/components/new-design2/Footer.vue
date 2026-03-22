@@ -188,24 +188,25 @@ export default {
   background-color: #FFFBF3;
   color: #000000;
   font-family: 'Helvetica Neue', Arial, sans-serif;
-  padding: 10px 0 20px;
-  height: 428px;
+  padding: 18px 0 26px;
+  height: auto;
 }
 .main-footer {
-  max-width: 1400px;
+  width: 97%;
+  max-width: 1880px;
   margin: 0 auto;
-  padding: 0 40px;
+  padding: 0 clamp(20px, 2.6vw, 42px);
   height: 100%;
 }
 .logo-section {
-  margin-bottom: 40px;
+  margin-bottom: 34px;
 }
 .footer-logo {
   height: 50px;
   width: auto;
 }
 .footer-content {
-  margin-bottom: 30px;
+  margin-bottom: 28px;
 }
 .column-title {
   font-size: 14px;
@@ -233,7 +234,7 @@ export default {
 .right-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
   align-items: stretch;
   width: 100%;
 }
@@ -274,7 +275,7 @@ export default {
 .social-list {
   display: flex;
   justify-content: center;
-  gap: 12px;
+  gap: 16px;
   list-style: none;
   padding: 0;
   margin: 0;
@@ -322,7 +323,7 @@ export default {
 .copyright-section {
   border-top: 1px solid #e0e0e0;
   padding-top: 20px;
-  margin-top: 20px;
+  margin-top: 24px;
 }
 .copyright-text {
   color: #000 !important;
@@ -370,7 +371,8 @@ export default {
     height: auto;
   }
   .main-footer {
-    padding: 0 20px;
+    width: 97%;
+    padding: 0 16px;
     height: auto;
   }
   .logo-section {

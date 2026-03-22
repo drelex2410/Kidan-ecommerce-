@@ -66,7 +66,7 @@ export default {
 <style scoped>
 .hero-banner-section {
     width: 100%;
-    height: 300px;
+    height: clamp(220px, 34vw, 380px);
     position: relative;
     background: #FFFBF3;
 }
@@ -82,7 +82,7 @@ export default {
 }
 
 .hero-swiper :deep(.swiper-pagination) {
-    bottom: 2rem;
+    bottom: clamp(0.9rem, 2vw, 1.5rem);
     z-index: 20;
 }
 
@@ -144,22 +144,22 @@ export default {
 
 @media (max-width: 960px) {
     .hero-banner-section {
-        height: 350px;
+        height: clamp(240px, 42vw, 340px);
     }
 }
 
 @media (max-width: 600px) {
     .hero-banner-section {
-        height: 250px;
+        height: clamp(220px, 58vw, 300px);
     }
     .hero-swiper :deep(.swiper-pagination) {
-        bottom: 1.5rem;
+        bottom: 1rem;
     }
 }
 
 @media (max-width: 400px) {
     .hero-banner-section {
-        height: 200px;
+        height: clamp(200px, 62vw, 240px);
     }
     .hero-swiper :deep(.swiper-pagination-bullet) {
         width: 6px;

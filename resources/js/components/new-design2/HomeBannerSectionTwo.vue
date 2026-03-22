@@ -46,8 +46,8 @@ export default {
 <style scoped>
 .hero-banner-section {
     width: 100%;
-    height: 100vh;
-    min-height: 600px;
+    height: min(92svh, 860px);
+    min-height: 620px;
     position: relative;
     overflow: hidden;
 }
@@ -84,20 +84,24 @@ export default {
     left: 0;
     right: 0;
     bottom: 0;
-    background: linear-gradient(to right,
-            rgba(0, 0, 0, 0.6) 0%,
-            rgba(0, 0, 0, 0.3) 50%,
-            rgba(0, 0, 0, 0.6) 100%);
+    background:
+        linear-gradient(180deg,
+            rgba(0, 0, 0, 0.1) 0%,
+            rgba(0, 0, 0, 0.45) 100%),
+        linear-gradient(to right,
+            rgba(0, 0, 0, 0.68) 0%,
+            rgba(0, 0, 0, 0.18) 50%,
+            rgba(0, 0, 0, 0.72) 100%);
 }
 
 .hero-content {
     position: relative;
-   
     height: 100%;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 5%;
+    gap: clamp(1.5rem, 3vw, 3rem);
+    padding: clamp(2rem, 4vw, 3.5rem) clamp(1rem, 5vw, 5rem);
     max-width: 1800px;
     margin: 0 auto;
 }
@@ -105,6 +109,7 @@ export default {
 .hero-text-left {
     flex: 1;
     max-width: 400px;
+    min-width: 0;
 }
 
 .hero-subtitle {
@@ -137,6 +142,7 @@ export default {
     flex: 1;
     max-width: 500px;
     text-align: left;
+    min-width: 0;
 }
 
 .hero-title {
@@ -147,6 +153,7 @@ export default {
     line-height: 0.9;
     letter-spacing: -0.02em;
     text-transform: uppercase;
+    text-wrap: balance;
 }
 
 .hero-cta {
@@ -170,8 +177,13 @@ export default {
 }
 
 @media (max-width: 1200px) {
+    .hero-banner-section {
+        height: min(84svh, 780px);
+        min-height: 580px;
+    }
+
     .hero-content {
-        padding: 0 3%;
+        padding-inline: clamp(1rem, 4vw, 2.5rem);
     }
 
     .hero-center-image {
@@ -181,14 +193,15 @@ export default {
 
 @media (max-width: 960px) {
     .hero-banner-section {
-        min-height: 500px;
+        height: auto;
+        min-height: 0;
     }
 
     .hero-content {
         flex-direction: column;
         justify-content: center;
-        gap: 2rem;
-        padding: 3rem 2rem;
+        gap: 1.75rem;
+        padding: 3rem 1.5rem 3.5rem;
     }
 
     .hero-text-left,
@@ -199,7 +212,7 @@ export default {
 
     .hero-center-image {
         margin: 0;
-        width: clamp(250px, 50vw, 350px);
+        width: min(100%, clamp(250px, 50vw, 350px));
         height: clamp(300px, 50vw, 420px);
     }
 
@@ -210,24 +223,26 @@ export default {
 
 @media (max-width: 600px) {
     .hero-banner-section {
-        min-height: 600px;
+        min-height: 0;
     }
 
     .hero-content {
-        padding: 2rem 1rem;
-        gap: 1.5rem;
+        gap: 1.25rem;
+        padding: 2.25rem 1rem 2.75rem;
     }
 
     .hero-subtitle {
         font-size: 1.3rem;
+        line-height: 1.25;
     }
 
     .hero-title {
         font-size: 2rem;
+        line-height: 0.95;
     }
 
     .hero-center-image {
-        width: 220px;
+        width: min(100%, 220px);
         height: 280px;
     }
 

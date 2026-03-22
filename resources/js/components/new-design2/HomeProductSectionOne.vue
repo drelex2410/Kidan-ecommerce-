@@ -99,7 +99,30 @@ export default {
       this.loading = false;
     }
   },
+  mounted() {
+    this.updateVisibleCount();
+    window.addEventListener("resize", this.updateVisibleCount);
+  },
+  beforeUnmount() {
+    window.removeEventListener("resize", this.updateVisibleCount);
+  },
   methods: {
+    updateVisibleCount() {
+      const width = window.innerWidth;
+      let nextVisibleCount = 4;
+
+      if (width <= 600) {
+        nextVisibleCount = 1;
+      } else if (width <= 960) {
+        nextVisibleCount = 2;
+      }
+
+      this.visibleCount = nextVisibleCount;
+      const maxIndex = Math.max(this.products.length - this.visibleCount, 0);
+      if (this.currentIndex > maxIndex) {
+        this.currentIndex = 0;
+      }
+    },
     slideLeft() {
       if (this.products.length <= this.visibleCount) return;
       
@@ -203,7 +226,7 @@ export default {
 .products-slider {
   flex: 1;
   width: 100%;
-      padding: 0 5%;
+  padding: 0 clamp(1.25rem, 4vw, 4rem);
   overflow: hidden;
   min-width: 0; /* Important for flex child to respect overflow */
 }
@@ -348,10 +371,12 @@ export default {
 @media (max-width: 1200px) {
   .content-wrapper {
     flex-direction: column;
+    gap: 1.5rem;
   }
 
   .promo-banner {
     width: 100%;
+    padding-bottom: 0.5rem;
   }
 
   .slider-item,
@@ -372,6 +397,10 @@ export default {
 
   .products-container {
     padding: 0;
+  }
+
+  .products-slider {
+    padding-inline: 1.5rem;
   }
 
   .slider-arrow-left {
@@ -413,6 +442,11 @@ export default {
   }
 
 
+  .products-slider {
+    padding-inline: 0;
+  }
+
+  .slider-item,
   .product-skeleton {
     flex: 0 0 calc(100% - 0.5rem); /* 1 item on mobile */
   }

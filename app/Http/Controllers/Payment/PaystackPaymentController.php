@@ -5,11 +5,16 @@ namespace App\Http\Controllers\Payment;
 use App\Http\Controllers\Controller;
 use App\Models\CombinedOrder;
 use App\Models\User;
+use App\Support\Payments\HandlesPaystackInitialization;
 use Illuminate\Http\Request;
 use Paystack;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Throwable;
 
 class PaystackPaymentController extends Controller
 {
+    use HandlesPaystackInitialization;
+
     public function index(Request $request)
     {
         $paymentType = $request->input('payment_type', session('payment_type'));
@@ -17,8 +22,10 @@ class PaystackPaymentController extends Controller
         $email = $this->resolveCheckoutEmail($request, $order);
 
         if (!$email) {
-            return $this->paymentInitializationFailed('Unable to initialize Paystack payment because no customer email address was found.');
+            throw new HttpException(422, 'Unable to initialize Paystack payment because no customer email address was found.');
         }
+
+        $this->assertPaystackConfigured();
 
         $request->merge([
             'email' => $email,
@@ -27,7 +34,7 @@ class PaystackPaymentController extends Controller
 
         if ($paymentType == 'cart_payment' || $paymentType == 'repayment') {
             if (!$order) {
-                return $this->paymentInitializationFailed('Unable to initialize Paystack payment because the order could not be found.');
+                throw new HttpException(404, 'Unable to initialize Paystack payment because the order could not be found.');
             }
 
             $request->merge([
@@ -47,7 +54,14 @@ class PaystackPaymentController extends Controller
             'reference' => Paystack::genTranxRef(),
         ]);
 
-        return Paystack::getAuthorizationUrl()->redirectNow();
+        try {
+            return Paystack::getAuthorizationUrl()->redirectNow();
+        } catch (Throwable $exception) {
+            throw $this->paystackInitializationException($exception, $request, [
+                'combined_order_id' => $order?->id,
+                'email_present' => true,
+            ]);
+        }
     }
 
     public function paystackNewCallback()
@@ -139,10 +153,4 @@ class PaystackPaymentController extends Controller
         return is_array($decoded) ? $decoded : [];
     }
 
-    private function paymentInitializationFailed(string $message)
-    {
-        return redirect()->back()->withErrors([
-            'payment' => $message,
-        ]);
-    }
 }

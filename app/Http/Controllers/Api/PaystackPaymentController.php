@@ -5,11 +5,16 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Order;
 use App\Models\User;
+use App\Support\Payments\HandlesPaystackInitialization;
 use Illuminate\Http\Request;
 use Paystack;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Throwable;
 
 class PaystackPaymentController extends Controller
 {
+    use HandlesPaystackInitialization;
+
     public function index(Request $request)
     {
         session()->put('redirect_to', $request->redirect_to);
@@ -19,21 +24,43 @@ class PaystackPaymentController extends Controller
         session()->put('user_id', $request->user_id);
         session()->put('order_code', $request->order_code);
 
+        $paymentType = (string) $request->payment_type;
+        $order = $this->resolveOrder($request);
+        $email = $this->resolveCheckoutEmail($request, $order);
+
+        if (!$email) {
+            throw new HttpException(422, 'Unable to initialize Paystack payment because no customer email address was found.');
+        }
+
+        $this->assertPaystackConfigured();
+
         if ($request->payment_type == 'cart_payment') {
-            $order = Order::where('code', session('order_code'))->first();
-            $user = User::find($request->user_id);
-            $request->email = $user->email;
+            if (!$order) {
+                throw new HttpException(404, 'Unable to initialize Paystack payment because the order could not be found.');
+            }
+
+            $request->email = $email;
             $request->amount = round($order->grand_total * 100);
             $request->currency = env('PAYSTACK_CURRENCY_CODE', 'NGN');
             $request->reference = Paystack::genTranxRef();
-            return Paystack::getAuthorizationUrl()->redirectNow();
         } elseif ($request->payment_type == 'wallet_payment') {
-            $user = User::find($request->user_id);
-            $request->email = $user->email;
+            $request->email = $email;
             $request->amount = round($request->amount * 100);
             $request->currency = env('PAYSTACK_CURRENCY_CODE', 'NGN');
             $request->reference = Paystack::genTranxRef();
+        } else {
+            throw new HttpException(422, 'Unsupported payment type.');
+        }
+
+        try {
             return Paystack::getAuthorizationUrl()->redirectNow();
+        } catch (Throwable $exception) {
+            throw $this->paystackInitializationException($exception, $request, [
+                'legacy_api_controller' => true,
+                'order_id' => $order?->id,
+                'payment_type' => $paymentType,
+                'email_present' => true,
+            ]);
         }
     }
 
@@ -83,5 +110,66 @@ class PaystackPaymentController extends Controller
             $redirect_to = session('redirect_to') . "?" . session('payment_type') . "=failed&order_code=" . session('order_code') . "&payment_method=" . session('payment_method');
             return redirect($redirect_to);
         }
+    }
+
+    private function resolveOrder(Request $request): ?Order
+    {
+        $orderCode = $request->input('order_code', session('order_code'));
+
+        if (!$orderCode) {
+            return null;
+        }
+
+        return Order::where('code', $orderCode)->first();
+    }
+
+    private function resolveCheckoutEmail(Request $request, ?Order $order): ?string
+    {
+        $user = $this->resolveUser($request);
+        $shippingAddress = $this->decodeAddress($order?->shipping_address);
+        $billingAddress = $this->decodeAddress($order?->billing_address);
+
+        $candidates = [
+            $user?->email,
+            $request->input('email'),
+            $shippingAddress['email'] ?? null,
+            $billingAddress['email'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (!is_string($candidate)) {
+                continue;
+            }
+
+            $candidate = trim($candidate);
+            if ($candidate !== '' && filter_var($candidate, FILTER_VALIDATE_EMAIL)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveUser(Request $request): ?User
+    {
+        if ($request->filled('user_id')) {
+            $user = User::find($request->user_id);
+            if ($user) {
+                return $user;
+            }
+        }
+
+        return auth('api')->user();
+    }
+
+    private function decodeAddress($address): array
+    {
+        if (!is_string($address) || trim($address) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($address, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 }

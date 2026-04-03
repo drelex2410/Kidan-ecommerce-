@@ -20,15 +20,15 @@
                         {{ category.name }}
                     </router-link>
 
-                    <div v-if="category.children.data.length">
+                    <div v-if="getChildren(category).length">
                         <router-link 
-                            v-for="(child, j) in category.children.data" 
-                            :key="j" 
+                            v-for="(child, j) in getChildren(category)" 
+                            :key="child.id || j" 
                             :to="{ name: 'Category', params: { categorySlug: child.slug }}" 
                             class="text-reset d-inline-block fs-11 opacity-70"
                         >
                             {{ child.name }}
-                            <span v-if="j + 1 !== category.children.data.length" class="px-1">|</span>
+                            <span v-if="j + 1 !== getChildren(category).length" class="px-1">|</span>
                         </router-link>
                     </div>
                 </v-col>
@@ -43,6 +43,19 @@ export default {
         loading: true,
         allCategories: []
     }),
+    methods: {
+        getChildren(category) {
+            if (Array.isArray(category?.children)) {
+                return category.children;
+            }
+
+            if (Array.isArray(category?.children?.data)) {
+                return category.children.data;
+            }
+
+            return [];
+        }
+    },
     async created() {
         const res = await this.call_api("get", "all-categories");
         if (res.status === 200) {

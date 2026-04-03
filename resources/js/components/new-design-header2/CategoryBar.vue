@@ -1,64 +1,122 @@
 <template>
   <div class="category-bar" v-if="categories.length && isScrolled">
     <div class="category-bar-container d-flex align-center">
-      <!-- Visible categories (responsive count) -->
-      <div v-for="(category, i) in visibleCategories" :key="i" class="category-wrapper"
-        @mouseenter="showSubcategories(category)" @mouseleave="startHideTimer">
-        <router-link :to="{ name: 'Category', params: { categorySlug: category.slug } }" class="category-link">
+      <div
+        v-for="(category, i) in visibleCategories"
+        :key="category.id || i"
+        class="category-wrapper"
+        @mouseenter="activateCategory(category)"
+      >
+        <router-link
+          :to="{ name: 'Category', params: { categorySlug: category.slug } }"
+          class="category-link"
+          :class="{ 'is-active': activeCategory && activeCategory.id === category.id }"
+          @click="closeAllMenus"
+        >
           {{ category.name }}
         </router-link>
       </div>
 
-      <!-- More button (shown when there are hidden categories) -->
-      <button v-if="hiddenCategories.length > 0" @click="openModal" @mouseenter="startHoverTimer"
-        @mouseleave="clearHoverTimer" class="more-button" aria-label="More categories">
+      <button
+        v-if="hiddenCategories.length > 0"
+        @click="openModal"
+        @mouseenter="startHoverTimer"
+        @mouseleave="clearHoverTimer"
+        class="more-button"
+        aria-label="More categories"
+      >
         More
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-            stroke-linejoin="round" />
+          <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </button>
     </div>
 
-    <!-- Subcategories Mega Menu -->
-    <div v-if="activeCategory && activeCategory.children && processedSubcategories.length > 0" class="mega-menu"
-      @mouseenter="clearHideTimer" @mouseleave="hideSubcategories">
-      <div class="mega-menu-container">
-        <div class="mega-menu-grid">
-          <!-- Regular subcategories -->
-          <div v-for="(subcategory, index) in processedSubcategories" :key="index" class="subcategory-section">
-            <router-link :to="{ name: 'Category', params: { categorySlug: subcategory.slug } }" class="subcategory-item"
-              @click="hideSubcategories">
-              <div class="subcategory-name">{{ subcategory.name }}</div>
-            </router-link>
-          </div>
+    <transition name="dropdown-fade">
+      <div
+        v-if="shouldShowMegaMenu"
+        class="mega-menu"
+        @mouseenter="clearHideTimer"
+        @mouseleave="startHideTimer"
+      >
+        <div class="mega-menu-container">
+          <div class="mega-menu-panel" :class="{ 'is-single-panel': !hasSubSubcategoryPanel }">
+            <div class="subcategory-list">
+              <router-link
+                v-for="(subcategory, index) in activeCategoryChildren"
+                :key="subcategory.id || index"
+                :to="{ name: 'Category', params: { categorySlug: subcategory.slug } }"
+                class="subcategory-item"
+                :class="{
+                  'is-active': activeSubcategory && activeSubcategory.id === subcategory.id,
+                  'has-children': hasChildren(subcategory),
+                }"
+                @mouseenter="activateSubcategory(subcategory)"
+                @click="closeAllMenus"
+              >
+                <span class="subcategory-name">{{ subcategory.name }}</span>
+                <i v-if="hasChildren(subcategory)" class="las la-angle-right subcategory-caret"></i>
+              </router-link>
 
-          <!-- View All link at the end -->
-          <router-link v-if="activeCategory && activeCategory.slug"
-            :to="{ name: 'Category', params: { categorySlug: activeCategory.slug } }"
-            class="subcategory-item view-all-item" @click="hideSubcategories">
-            <div class="subcategory-name view-all-text">View All {{ activeCategory.name }}</div>
-          </router-link>
+              <router-link
+                v-if="activeCategory && activeCategory.slug"
+                :to="{ name: 'Category', params: { categorySlug: activeCategory.slug } }"
+                class="subcategory-item view-all-item"
+                @mouseenter="clearActiveSubcategory"
+                @click="closeAllMenus"
+              >
+                <span class="subcategory-name">View All {{ activeCategory.name }}</span>
+              </router-link>
+            </div>
+
+            <transition name="submenu-fade">
+              <div v-if="hasSubSubcategoryPanel" class="sub-subcategory-panel">
+                <div class="sub-subcategory-header">
+                  <router-link
+                    :to="{ name: 'Category', params: { categorySlug: activeSubcategory.slug } }"
+                    class="sub-subcategory-parent"
+                    @click="closeAllMenus"
+                  >
+                    {{ activeSubcategory.name }}
+                  </router-link>
+                </div>
+
+                <div class="sub-subcategory-list">
+                  <router-link
+                    v-for="(child, index) in activeSubcategoryChildren"
+                    :key="child.id || index"
+                    :to="{ name: 'Category', params: { categorySlug: child.slug } }"
+                    class="sub-subcategory-item"
+                    @click="closeAllMenus"
+                  >
+                    {{ child.name }}
+                  </router-link>
+                </div>
+              </div>
+            </transition>
+          </div>
         </div>
       </div>
-    </div>
+    </transition>
 
-    <!-- Modal for hidden categories -->
     <div v-if="showMoreModal" class="modal-overlay" @click.self="closeModal" @mouseleave="closeModal">
       <div class="modal-content">
         <div class="modal-header">
           <h3>All Categories</h3>
           <button @click="closeModal" class="close-button">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                stroke-linejoin="round" />
+              <path d="M18 6L6 18M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
           </button>
         </div>
         <div class="modal-grid">
-          <router-link v-for="(category, i) in hiddenCategories" :key="`hidden-${i}`"
-            :to="{ name: 'Category', params: { categorySlug: category.slug } }" class="modal-category-link"
-            @click="closeModal">
+          <router-link
+            v-for="(category, i) in hiddenCategories"
+            :key="category.id || `hidden-${i}`"
+            :to="{ name: 'Category', params: { categorySlug: category.slug } }"
+            class="modal-category-link"
+            @click="closeModal"
+          >
             {{ category.name }}
           </router-link>
         </div>
@@ -66,8 +124,11 @@
     </div>
   </div>
 </template>
+
 <script>
 export default {
+  emits: ["menu-state-change"],
+
   props: {
     categories: { type: Array, required: true },
     isScrolled: { type: Boolean, required: true },
@@ -79,13 +140,13 @@ export default {
       hoverTimeout: null,
       hideTimeout: null,
       activeCategory: null,
+      activeSubcategory: null,
       visibleCount: 11,
     };
   },
 
   computed: {
     visibleCategories() {
-      this.updateVisibleCount();
       return this.categories.slice(0, this.visibleCount);
     },
 
@@ -93,17 +154,20 @@ export default {
       return this.categories.slice(this.visibleCount);
     },
 
-    // Process subcategories to remove "View All" from the list
-    processedSubcategories() {
-      if (!this.activeCategory || !this.activeCategory.children || !this.activeCategory.children.data) {
-        return [];
-      }
+    activeCategoryChildren() {
+      return this.normalizeChildren(this.activeCategory);
+    },
 
-      // Filter out items with "view all" in their name (case insensitive)
-      return this.activeCategory.children.data.filter(subcategory => {
-        const name = subcategory.name.toLowerCase();
-        return !name.includes('view all');
-      });
+    activeSubcategoryChildren() {
+      return this.normalizeChildren(this.activeSubcategory);
+    },
+
+    shouldShowMegaMenu() {
+      return !!this.activeCategory && this.activeCategoryChildren.length > 0;
+    },
+
+    hasSubSubcategoryPanel() {
+      return !!this.activeSubcategory && this.activeSubcategoryChildren.length > 0;
     },
   },
 
@@ -122,15 +186,48 @@ export default {
       }
     },
 
-    showSubcategories(category) {
+    normalizeChildren(category) {
+      const children = Array.isArray(category?.children)
+        ? category.children
+        : Array.isArray(category?.children?.data)
+          ? category.children.data
+          : [];
+
+      return children.filter((child) => !this.isViewAllItem(child));
+    },
+
+    hasChildren(category) {
+      return this.normalizeChildren(category).length > 0;
+    },
+
+    isViewAllItem(category) {
+      const name = (category?.name || "").toLowerCase();
+      return name.includes("view all");
+    },
+
+    activateCategory(category) {
       this.clearHideTimer();
       this.activeCategory = category;
+      this.activeSubcategory = null;
+      this.emitMenuState();
+    },
+
+    activateSubcategory(subcategory) {
+      this.clearHideTimer();
+      this.activeSubcategory = this.hasChildren(subcategory) ? subcategory : null;
+      this.emitMenuState();
+    },
+
+    clearActiveSubcategory() {
+      this.activeSubcategory = null;
+      this.emitMenuState();
     },
 
     startHideTimer() {
+      this.clearHideTimer();
       this.hideTimeout = window.setTimeout(() => {
-        this.hideSubcategories();
-      }, 200);
+        this.closeAllMenus();
+      }, 220);
     },
 
     clearHideTimer() {
@@ -140,14 +237,17 @@ export default {
       }
     },
 
-    hideSubcategories() {
+    closeAllMenus() {
       this.clearHideTimer();
       this.activeCategory = null;
+      this.activeSubcategory = null;
+      this.emitMenuState();
     },
 
     startHoverTimer() {
       this.hoverTimeout = window.setTimeout(() => {
         this.showMoreModal = true;
+        this.emitMenuState();
       }, 300);
     },
 
@@ -161,62 +261,74 @@ export default {
     openModal() {
       this.clearHoverTimer();
       this.showMoreModal = true;
+      this.emitMenuState();
     },
 
     closeModal() {
       this.clearHoverTimer();
       this.showMoreModal = false;
+      this.emitMenuState();
     },
 
-    handleKeydown(e) {
-      if (e.key === 'Escape') {
+    handleKeydown(event) {
+      if (event.key === "Escape") {
         if (this.showMoreModal) {
           this.closeModal();
         }
         if (this.activeCategory) {
-          this.hideSubcategories();
+          this.closeAllMenus();
         }
       }
     },
 
-    handleClickOutside(e) {
-      if (this.showMoreModal && !e.target.closest('.modal-content') && !e.target.closest('.more-button')) {
+    handleClickOutside(event) {
+      if (this.showMoreModal && !event.target.closest(".modal-content") && !event.target.closest(".more-button")) {
         this.closeModal();
       }
+    },
+
+    emitMenuState() {
+      this.$emit("menu-state-change", this.shouldShowMegaMenu || this.showMoreModal);
     },
   },
 
   watch: {
     showMoreModal(newValue) {
       if (newValue) {
-        document.addEventListener('click', this.handleClickOutside);
-        document.body.classList.add('modal-open');
+        document.addEventListener("click", this.handleClickOutside);
+        document.body.classList.add("modal-open");
       } else {
-        document.removeEventListener('click', this.handleClickOutside);
-        document.body.classList.remove('modal-open');
+        document.removeEventListener("click", this.handleClickOutside);
+        document.body.classList.remove("modal-open");
       }
     },
   },
 
   mounted() {
     this.updateVisibleCount();
-    window.addEventListener('resize', this.updateVisibleCount);
-    document.addEventListener('keydown', this.handleKeydown);
+    window.addEventListener("resize", this.updateVisibleCount);
+    document.addEventListener("keydown", this.handleKeydown);
   },
 
   beforeUnmount() {
-    window.removeEventListener('resize', this.updateVisibleCount);
-    document.removeEventListener('keydown', this.handleKeydown);
-    document.removeEventListener('click', this.handleClickOutside);
+    window.removeEventListener("resize", this.updateVisibleCount);
+    document.removeEventListener("keydown", this.handleKeydown);
+    document.removeEventListener("click", this.handleClickOutside);
+    document.body.classList.remove("modal-open");
     this.clearHoverTimer();
     this.clearHideTimer();
-    document.body.classList.remove('modal-open');
+    this.$emit("menu-state-change", false);
   },
 };
 </script>
+
 <style scoped>
 .category-bar {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  --menu-surface: #FFFBF3;
+  --menu-hover: rgba(128, 0, 0, 0.08);
+  --menu-border: rgba(0, 0, 0, 0.08);
+  --menu-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid var(--menu-border);
   background: #FFFBF3;
   position: relative;
 }
@@ -249,7 +361,7 @@ export default {
   text-decoration: none;
   font-size: 0.875rem;
   letter-spacing: 0.5px;
-  transition: all 0.3s ease;
+  transition: color 0.24s ease;
   position: relative;
   white-space: nowrap;
   display: block;
@@ -262,96 +374,159 @@ export default {
   left: 0;
   width: 0;
   height: 2px;
-  background: #1a1a1a;
-  transition: width 0.3s ease;
+  background: #800000;
+  transition: width 0.24s ease;
 }
 
-.category-wrapper:hover .category-link::after {
+.category-link:hover,
+.category-link.is-active {
+  color: #800000;
+}
+
+.category-link:hover::after,
+.category-link.is-active::after {
   width: 100%;
 }
 
-/* Mega Menu Styles */
 .mega-menu {
   position: absolute;
   top: 100%;
   left: 0;
   right: 0;
-  background: white;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  background: var(--menu-surface);
+  box-shadow: var(--menu-shadow);
   z-index: 999;
-  animation: slideDown 0.2s ease;
-  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-top: 1px solid var(--menu-border);
 }
 
 .mega-menu-container {
-  max-width: 1400px;
+  width: 100%;
   margin: 0 auto;
-  padding: 1.5rem 3rem;
+  padding: 0 3rem 1.25rem;
+  box-sizing: border-box;
 }
 
-.mega-menu-grid {
+.mega-menu-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: minmax(240px, 300px) minmax(260px, 1fr);
+  background: var(--menu-surface);
+  border: 1px solid var(--menu-border);
+  border-radius: 18px;
+  overflow: hidden;
 }
 
-.subcategory-section {
+.mega-menu-panel.is-single-panel {
+  grid-template-columns: minmax(240px, 320px);
+  width: fit-content;
+  min-width: min(100%, 320px);
+}
+
+.subcategory-list,
+.sub-subcategory-panel {
+  background: var(--menu-surface);
+}
+
+.subcategory-list {
   display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem;
+}
+
+.sub-subcategory-panel {
+  border-left: 1px solid var(--menu-border);
+  padding: 1rem 1.1rem;
+  min-width: 0;
+}
+
+.sub-subcategory-header {
+  padding-bottom: 0.75rem;
+  margin-bottom: 0.75rem;
+  border-bottom: 1px solid var(--menu-border);
+}
+
+.sub-subcategory-parent {
+  text-decoration: none;
+  color: #1a1a1a;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: color 0.24s ease;
+}
+
+.sub-subcategory-parent:hover {
+  color: #800000;
+}
+
+.sub-subcategory-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem;
+}
+
+.subcategory-item,
+.sub-subcategory-item {
+  text-decoration: none;
+  color: #1a1a1a;
+  transition:
+    color 0.24s ease,
+    border-color 0.24s ease,
+    background-color 0.24s ease,
+    transform 0.24s ease;
 }
 
 .subcategory-item {
-  text-decoration: none;
-  color: #1a1a1a;
-  transition: all 0.3s ease;
-  border-radius: 6px;
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   width: 100%;
-  padding: 12px;
+  padding: 12px 14px;
   border: 1px solid transparent;
-  background: #f8f9fa;
+  border-radius: 12px;
+  background: transparent;
 }
 
-.subcategory-item:hover {
-  background: white;
-  border-color: #1a1a1a;
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+.subcategory-item:hover,
+.subcategory-item.is-active {
+  color: #800000;
+  background: var(--menu-hover);
+  border-color: rgba(128, 0, 0, 0.18);
+  transform: translateX(4px);
+}
+
+.subcategory-item.has-children .subcategory-caret {
+  font-size: 1rem;
 }
 
 .subcategory-name {
   font-size: 0.875rem;
   font-weight: 500;
-  text-align: center;
   line-height: 1.3;
 }
 
-/* View All item styling */
 .view-all-item {
-  background: #1a1a1a;
-  color: white;
-  grid-column: 1 / -1;
-  /* Make it span full width */
-  max-width: 200px;
-  margin: 0.5rem auto 0;
-}
-
-.view-all-item:hover {
-  background: #333;
-  border-color: #1a1a1a;
-  color: white;
-}
-
-.view-all-text {
-  color: white;
+  margin-top: 0.25rem;
   font-weight: 600;
 }
 
-.view-all-item:hover .view-all-text {
-  color: white;
+.sub-subcategory-item {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  font-size: 0.875rem;
+  line-height: 1.35;
 }
 
-/* More button styles */
+.sub-subcategory-item:hover {
+  color: #800000;
+  background: var(--menu-hover);
+  border-color: rgba(128, 0, 0, 0.18);
+}
+
 .more-button {
   display: flex;
   align-items: center;
@@ -363,17 +538,17 @@ export default {
   letter-spacing: 0.5px;
   cursor: pointer;
   padding: 8px 12px;
-  border-radius: 4px;
-  transition: background-color 0.3s ease;
+  border-radius: 6px;
+  transition: color 0.24s ease, background-color 0.24s ease;
   flex-shrink: 0;
   white-space: nowrap;
 }
 
 .more-button:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  color: #800000;
+  background-color: rgba(128, 0, 0, 0.06);
 }
 
-/* Modal styles */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -389,17 +564,17 @@ export default {
 }
 
 .modal-content {
-  background: white;
-  border-radius: 8px;
+  background: #FFFBF3;
+  border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
   max-width: 800px;
   width: 90%;
   max-height: 70vh;
   overflow-y: auto;
-  animation: slideDown 0.3s ease;
+  animation: modal-slide-down 0.3s ease;
 }
 
-@keyframes slideDown {
+@keyframes modal-slide-down {
   from {
     opacity: 0;
     transform: translateY(-20px);
@@ -409,6 +584,21 @@ export default {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+.dropdown-fade-enter-active,
+.dropdown-fade-leave-active,
+.submenu-fade-enter-active,
+.submenu-fade-leave-active {
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.dropdown-fade-enter-from,
+.dropdown-fade-leave-to,
+.submenu-fade-enter-from,
+.submenu-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
 }
 
 .modal-header {
@@ -432,11 +622,12 @@ export default {
   color: #666;
   padding: 8px;
   border-radius: 4px;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.3s ease, color 0.24s ease;
 }
 
 .close-button:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(128, 0, 0, 0.06);
+  color: #800000;
 }
 
 .modal-grid {
@@ -450,17 +641,17 @@ export default {
   color: #1a1a1a;
   text-decoration: none;
   padding: 12px 16px;
-  border-radius: 6px;
-  transition: all 0.3s ease;
+  border-radius: 10px;
+  transition: all 0.24s ease;
   font-size: 0.875rem;
 }
 
 .modal-category-link:hover {
-  background-color: rgba(0, 0, 0, 0.05);
+  background-color: rgba(128, 0, 0, 0.06);
+  color: #800000;
   transform: translateY(-2px);
 }
 
-/* Responsive adjustments */
 @media (max-width: 1024px) {
   .category-bar-container {
     gap: 2rem;
@@ -469,16 +660,15 @@ export default {
   }
 
   .mega-menu-container {
-    padding: 1rem 2rem;
+    padding: 0 2rem 1rem;
   }
 
-  .mega-menu-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 0.5rem;
+  .mega-menu-panel {
+    grid-template-columns: minmax(220px, 280px) minmax(220px, 1fr);
   }
 
-  .subcategory-item {
-    padding: 10px;
+  .sub-subcategory-list {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
   }
 }
 
@@ -489,11 +679,19 @@ export default {
   }
 
   .mega-menu-container {
-    padding: 1rem;
+    padding: 0 1rem 1rem;
   }
 
-  .mega-menu-grid {
-    grid-template-columns: repeat(3, 1fr);
+  .mega-menu-panel,
+  .mega-menu-panel.is-single-panel {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: 1fr;
+  }
+
+  .sub-subcategory-panel {
+    border-left: none;
+    border-top: 1px solid var(--menu-border);
   }
 
   .modal-content {
@@ -501,12 +699,9 @@ export default {
     margin-top: 60px;
   }
 
-  .modal-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-  }
-
-  .subcategory-name {
-    font-size: 0.8125rem;
+  .modal-grid,
+  .sub-subcategory-list {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   }
 }
 
@@ -521,10 +716,6 @@ export default {
     font-size: 0.8125rem;
   }
 
-  .mega-menu-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .modal-content {
     max-height: 60vh;
     width: 100%;
@@ -533,7 +724,8 @@ export default {
     padding-top: env(safe-area-inset-top);
   }
 
-  .modal-grid {
+  .modal-grid,
+  .sub-subcategory-list {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -545,28 +737,23 @@ export default {
     z-index: 1;
   }
 
-  .subcategory-name {
-    font-size: 0.75rem;
-  }
-
-  .view-all-item {
-    max-width: 160px;
+  .subcategory-name,
+  .sub-subcategory-item {
+    font-size: 0.8125rem;
   }
 }
 
-/* For very small screens */
 @media (max-width: 360px) {
   .category-bar-container {
     gap: 0.75rem;
   }
 
   .modal-grid,
-  .mega-menu-grid {
+  .sub-subcategory-list {
     grid-template-columns: 1fr;
   }
 }
 
-/* Prevent body scroll when modal is open */
 :deep(body.modal-open) {
   overflow: hidden;
 }

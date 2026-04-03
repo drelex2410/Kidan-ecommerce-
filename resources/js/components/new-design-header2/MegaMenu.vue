@@ -47,10 +47,10 @@
                             </router-link>
 
                             <!-- Subcategories -->
-                            <div v-if="category.children?.data?.length" class="subcategories">
+                            <div v-if="getChildren(category).length" class="subcategories">
                                 <router-link
-                                    v-for="(child, j) in category.children.data"
-                                    :key="`child-${j}`"
+                                    v-for="(child, j) in getChildren(category)"
+                                    :key="child.id || `child-${j}`"
                                     :to="{
                                         name: 'Category',
                                         params: { categorySlug: child.slug },
@@ -85,6 +85,17 @@ export default {
     methods: {
         goToCategoryPage() {
             this.$router.push({ name: "AllCategories" });
+        },
+        getChildren(category) {
+            if (Array.isArray(category?.children)) {
+                return category.children;
+            }
+
+            if (Array.isArray(category?.children?.data)) {
+                return category.children.data;
+            }
+
+            return [];
         },
     },
     async created() {

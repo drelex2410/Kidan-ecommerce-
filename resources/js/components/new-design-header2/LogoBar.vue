@@ -90,7 +90,8 @@
       :categories="categories" 
       :is-scrolled="isScrolled || showCategories"
       @mouseenter="showCategories = true"
-      @mouseleave="startHideTimer" />
+      @mouseleave="startHideTimer"
+      @menu-state-change="handleCategoryMenuState" />
 
     <Sidebar :show-sidebar="showSidebar" :loading-categories="loadingCategories" :categories="categories"
       @toggle-sidebar="toggleSidebar" :data="data" />
@@ -121,6 +122,7 @@ export default {
     isScrolled: false,
     isHovered: false,
     showCategories: false, // NEW: Controls category bar visibility
+    isCategoryMenuOpen: false,
     lastScrollPosition: 0,
     scrollTimeout: null,
     hideCategoryTimeout: null, // NEW: Timer for hiding categories
@@ -133,7 +135,7 @@ export default {
       return !this.isHomePage;
     },
     isHeaderActive() {
-      return this.hasStaticNonHomeHeader || this.isHovered || this.isScrolled;
+      return this.hasStaticNonHomeHeader || this.isHovered || this.isScrolled || this.showCategories || this.isCategoryMenuOpen;
     },
     cartDrawerOpen: {
       get() {
@@ -230,10 +232,19 @@ export default {
         this.showCategories = false; // Hide categories when account menu opens
       }
     },
+    handleCategoryMenuState(isOpen) {
+      this.isCategoryMenuOpen = isOpen;
+
+      if (isOpen) {
+        this.showCategories = true;
+        this.clearHideTimer();
+      }
+    },
     // NEW: Timer methods for smooth hover effects
     startHideTimer() {
       // Only hide categories if not scrolled
       if (!this.isScrolled) {
+        this.clearHideTimer();
         this.hideCategoryTimeout = setTimeout(() => {
           this.showCategories = false;
         }, 300);
@@ -303,6 +314,12 @@ export default {
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
+}
+
+.logobar.home-page.header-active {
+  background: #FFFBF3 !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+  border-bottom-color: rgba(0, 0, 0, 0.08);
 }
 
 .logobar.scrolled {

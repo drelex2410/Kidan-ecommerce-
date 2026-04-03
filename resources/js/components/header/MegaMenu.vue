@@ -42,12 +42,11 @@
                                             >{{ category.name }}</router-link
                                         >
                                     </h3>
-                                    <div v-if="category.children.data.length">
+                                    <div v-if="getChildren(category).length">
                                         <ul class="c-scrollbar-light">
                                             <li
-                                                v-for="(children, j) in category
-                                                    .children.data"
-                                                :key="j"
+                                                v-for="(children, j) in getChildren(category)"
+                                                :key="children.id || j"
                                             >
                                                 <v-hover v-slot="{ hover }">
                                                     <router-link
@@ -69,9 +68,7 @@
                                                         }}<span
                                                             v-if="
                                                                 j + 1 !==
-                                                                category
-                                                                    .children
-                                                                    .data.length
+                                                                getChildren(category).length
                                                             "
                                                             class=""
                                                             >,</span
@@ -102,6 +99,17 @@ export default {
     methods: {
         goToCategoryPage() {
             this.$router.push({ name: "AllCategories" });
+        },
+        getChildren(category) {
+            if (Array.isArray(category?.children)) {
+                return category.children;
+            }
+
+            if (Array.isArray(category?.children?.data)) {
+                return category.children.data;
+            }
+
+            return [];
         },
     },
     async created() {

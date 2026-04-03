@@ -28,13 +28,13 @@
                                 <h3 class="mb-3">
                                     <router-link :to="{ name: 'Category', params: {categorySlug: category.slug}}" class="text-reset">{{ category.name }}</router-link>
                                 </h3>
-                                <div v-if="category.children.data.length">
-                                    <v-hover v-slot="{ hover }" v-for="(children, j) in category.children.data" :key="j">
+                                <div v-if="getChildren(category).length">
+                                    <v-hover v-slot="{ hover }" v-for="(children, j) in getChildren(category)" :key="children.id || j">
                                         <v-hover v-slot="{ hover }">
                                         <router-link
                                             :class="['text-reset me-1 opacity-80 category-item-text', {'primary--text text-decoration-underline':hover}]"
                                             :to="{ name: 'Category', params: {categorySlug: children.slug}}"
-                                        >{{ children.name }}<span v-if="j+1 !== category.children.data.length" class="">,</span></router-link>
+                                        >{{ children.name }}<span v-if="j+1 !== getChildren(category).length" class="">,</span></router-link>
                                     </v-hover>
                                 </v-hover>
                                 </div>
@@ -58,7 +58,19 @@ export default {
         categories: [{},{},{},{}]
     }),
     mounted: () => {},
-    methods: {},
+    methods: {
+        getChildren(category) {
+            if (Array.isArray(category?.children)) {
+                return category.children;
+            }
+
+            if (Array.isArray(category?.children?.data)) {
+                return category.children.data;
+            }
+
+            return [];
+        }
+    },
     async created() {
         const res = await this.call_api("get", "all-categories");
         if (res.data.success) {

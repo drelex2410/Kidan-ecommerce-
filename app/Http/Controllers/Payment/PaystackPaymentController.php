@@ -12,20 +12,41 @@ class PaystackPaymentController extends Controller
 {
     public function index(Request $request)
     {
-        $user = User::find($request->user_id);
-        $request->email = $user->email;
-        $request->currency = env('PAYSTACK_CURRENCY_CODE', 'NGN');
+        $paymentType = $request->input('payment_type', session('payment_type'));
+        $order = $this->resolveCombinedOrder($request);
+        $email = $this->resolveCheckoutEmail($request, $order);
 
-        if ($request->payment_type == 'cart_payment' || session('payment_type') == 'repayment') {
-            $order = CombinedOrder::where('code', session('order_code'))->first();
-            $request->amount = round($order->grand_total * 100);
-        } elseif ($request->payment_type == 'wallet_payment') {
-            $request->amount = round($request->amount * 100);
-        } elseif ($request->payment_type == 'seller_package_payment') {
-            $request->amount = round($request->amount * 100);
+        if (!$email) {
+            return $this->paymentInitializationFailed('Unable to initialize Paystack payment because no customer email address was found.');
         }
 
-        $request->reference = Paystack::genTranxRef();
+        $request->merge([
+            'email' => $email,
+            'currency' => env('PAYSTACK_CURRENCY_CODE', 'NGN'),
+        ]);
+
+        if ($paymentType == 'cart_payment' || $paymentType == 'repayment') {
+            if (!$order) {
+                return $this->paymentInitializationFailed('Unable to initialize Paystack payment because the order could not be found.');
+            }
+
+            $request->merge([
+                'amount' => round($order->grand_total * 100),
+            ]);
+        } elseif ($paymentType == 'wallet_payment') {
+            $request->merge([
+                'amount' => round($request->amount * 100),
+            ]);
+        } elseif ($paymentType == 'seller_package_payment') {
+            $request->merge([
+                'amount' => round($request->amount * 100),
+            ]);
+        }
+
+        $request->merge([
+            'reference' => Paystack::genTranxRef(),
+        ]);
+
         return Paystack::getAuthorizationUrl()->redirectNow();
     }
 
@@ -55,5 +76,73 @@ class PaystackPaymentController extends Controller
         } catch (\Exception $e) {
             return (new PaymentController)->payment_failed();
         }
+    }
+
+    private function resolveCombinedOrder(Request $request): ?CombinedOrder
+    {
+        $orderCode = $request->input('order_code', session('order_code'));
+
+        if (!$orderCode) {
+            return null;
+        }
+
+        return CombinedOrder::where('code', $orderCode)->first();
+    }
+
+    private function resolveCheckoutEmail(Request $request, ?CombinedOrder $order): ?string
+    {
+        $user = $this->resolveUser($request);
+        $shippingAddress = $this->decodeAddress($order?->shipping_address);
+        $billingAddress = $this->decodeAddress($order?->billing_address);
+
+        $candidates = [
+            $user?->email,
+            $request->input('email'),
+            $shippingAddress['email'] ?? null,
+            $billingAddress['email'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (!is_string($candidate)) {
+                continue;
+            }
+
+            $candidate = trim($candidate);
+            if ($candidate !== '' && filter_var($candidate, FILTER_VALIDATE_EMAIL)) {
+                return $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function resolveUser(Request $request): ?User
+    {
+        if ($request->filled('user_id')) {
+            $user = User::find($request->user_id);
+            if ($user) {
+                return $user;
+            }
+        }
+
+        return $request->user();
+    }
+
+    private function decodeAddress($address): array
+    {
+        if (!is_string($address) || trim($address) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($address, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function paymentInitializationFailed(string $message)
+    {
+        return redirect()->back()->withErrors([
+            'payment' => $message,
+        ]);
     }
 }

@@ -6,6 +6,7 @@ use App\Models\Attribute;
 use App\Models\AttributeValue;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\RefundPolicy;
 use App\Models\ProductAttribute;
 use App\Models\ProductAttributeValue;
 use App\Models\ProductCategory;
@@ -152,7 +153,9 @@ class ProductController extends Controller
     {
         $categories = Category::where('level', 0)->where('digital', 0)->get();
         $attributes = Attribute::get();
-        return view('backend.product.products.create', compact('categories', 'attributes'));
+        $refundPolicies = $this->refundPoliciesForForm();
+
+        return view('backend.product.products.create', compact('categories', 'attributes', 'refundPolicies'));
     }
 
     /**
@@ -177,6 +180,7 @@ class ProductController extends Controller
         $product->shop_id           = optional($shop)->id;
         $this->applyProductOwnershipFields($product);
         $product->brand_id          = $request->brand_id;
+        $product->refund_policy_id  = $this->resolveRefundPolicyId($request);
         $product->unit              = $request->unit;
         $product->min_qty           = $request->min_qty;
         $product->max_qty           = $request->max_qty;
@@ -386,6 +390,7 @@ class ProductController extends Controller
             'variation_combinations',
             'product_categories',
             'brand',
+            'refundPolicy',
         ])->findOrFail($id);
         // if ($product->shop_id != auth()->user()->shop_id) {
         //     abort(403);
@@ -394,7 +399,9 @@ class ProductController extends Controller
         $lang = $request->lang;
         $categories = Category::where('level', 0)->where('digital', 0)->get();
         $all_attributes = Attribute::get();
-        return view('backend.product.products.edit', compact('product', 'categories', 'lang', 'all_attributes'));
+        $refundPolicies = $this->refundPoliciesForForm($product);
+
+        return view('backend.product.products.edit', compact('product', 'categories', 'lang', 'all_attributes', 'refundPolicies'));
     }
 
     /**
@@ -440,6 +447,7 @@ class ProductController extends Controller
         }
 
         $product->brand_id          = $request->brand_id;
+        $product->refund_policy_id  = $this->resolveRefundPolicyId($request, $product);
         app(ApplicationBootstrap::class)->initialize();
         $product->min_qty           = $request->min_qty;
         $product->max_qty           = $request->max_qty;
@@ -1149,5 +1157,58 @@ class ProductController extends Controller
         }
 
         return $slug;
+    }
+
+    private function refundPoliciesForForm(?Product $product = null)
+    {
+        $activePolicies = RefundPolicy::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        if (! $product || ! $product->refund_policy_id) {
+            return $activePolicies;
+        }
+
+        $currentPolicy = $product->refundPolicy;
+
+        if (! $currentPolicy || $currentPolicy->is_active) {
+            return $activePolicies;
+        }
+
+        return $activePolicies
+            ->push($currentPolicy)
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
+    }
+
+    private function resolveRefundPolicyId(Request $request, ?Product $product = null): ?int
+    {
+        $refundPolicyId = $request->input('refund_policy_id');
+
+        if ($refundPolicyId === null || $refundPolicyId === '') {
+            return null;
+        }
+
+        $refundPolicyId = (int) $refundPolicyId;
+
+        $allowedPolicyIds = RefundPolicy::query()
+            ->where('is_active', true)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+
+        if ($product?->refund_policy_id) {
+            $allowedPolicyIds[] = (int) $product->refund_policy_id;
+        }
+
+        if (! in_array($refundPolicyId, array_unique($allowedPolicyIds), true)) {
+            throw ValidationException::withMessages([
+                'refund_policy_id' => translate('Select a valid active refund policy.'),
+            ]);
+        }
+
+        return $refundPolicyId;
     }
 }

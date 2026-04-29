@@ -2,7 +2,13 @@
 
 namespace Tests\Feature\Api\V1\Benefits;
 
+use App\Models\Order;
+use App\Models\Product;
+use App\Models\RefundPolicy;
 use App\Models\User;
+use App\Addons\Refund\Http\Controllers\Admin\RefundPolicyController;
+use App\Services\Benefits\RefundEligibilityService;
+use Illuminate\Http\Request;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +34,8 @@ class PhaseSevenBenefitsTest extends TestCase
         DB::setDefaultConnection('sqlite');
         DB::reconnect('sqlite');
 
+        $this->app['view']->addNamespace('addon:refund', base_path('app/Addons/Refund/views'));
+
         $this->createBenefitsSchema();
         $this->seedBenefitSettings();
     }
@@ -45,6 +53,8 @@ class PhaseSevenBenefitsTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.0.id', $refundId)
+            ->assertJsonPath('data.0.status_key', 'pending')
+            ->assertJsonPath('data.0.refunditems.0.quantity_requested', 1)
             ->assertJsonCount(1, 'data');
     }
 
@@ -87,6 +97,533 @@ class PhaseSevenBenefitsTest extends TestCase
         $this->assertDatabaseHas('refund_requests', [
             'order_id' => $orderId,
             'user_id' => $user->id,
+        ]);
+    }
+
+    public function test_refund_create_context_returns_item_level_policy_eligibility(): void
+    {
+        $user = $this->createUser(['email_verified_at' => now()]);
+        [$orderDetailId, $orderId] = $this->seedEligibleOrder($user);
+
+        $response = $this->withToken($user->createToken('frontend-web')->plainTextToken)
+            ->getJson('/api/v1/user/refund-request/create/' . $orderId);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('order.refund_summary.has_eligible_items', true)
+            ->assertJsonPath('order.refund_summary.eligible_item_count', 1)
+            ->assertJsonPath('order.products.data.0.order_detail_id', $orderDetailId)
+            ->assertJsonPath('order.products.data.0.refund_eligibility.is_eligible', true)
+            ->assertJsonPath('order.products.data.0.refund_eligibility.max_requestable_quantity', 1);
+    }
+
+    public function test_refund_store_rejects_when_policy_window_has_expired(): void
+    {
+        $user = $this->createUser(['email_verified_at' => now()]);
+        [$orderDetailId, $orderId] = $this->seedEligibleOrder($user, 'EXPIRED-COMBINED', [
+            'policy' => ['refund_window_days' => 1],
+            'order' => [
+                'completed_at' => now()->subDays(3),
+                'created_at' => now()->subDays(5),
+                'updated_at' => now()->subDays(3),
+            ],
+        ]);
+
+        $response = $this->withToken($user->createToken('frontend-web')->plainTextToken)
+            ->postJson('/api/v1/user/refund-request/store', [
+                'order_id' => $orderId,
+                'refund_items' => json_encode([
+                    [
+                        'status' => true,
+                        'order_detail_id' => $orderDetailId,
+                        'quantity' => 1,
+                    ],
+                ]),
+                'refund_reasons' => 'Window expired',
+                'refund_note' => 'Trying after the allowed period.',
+            ]);
+
+        $order = Order::query()
+            ->with([
+                'refundRequests.refundRequestItems',
+                'orderDetails.product.refundPolicy',
+            ])
+            ->findOrFail($orderId);
+
+        $decoratedOrder = app(RefundEligibilityService::class)->decorateOrder($order);
+
+        $this->assertFalse((bool) data_get($decoratedOrder->getAttribute('refund_summary'), 'has_eligible_items'));
+        $this->assertSame(
+            'The refund window for this item has expired.',
+            data_get($decoratedOrder->orderDetails->first()?->getAttribute('refund_eligibility'), 'message')
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('status', 422)
+            ->assertJsonPath('message', "You can't send refund request for this order");
+    }
+
+    public function test_refund_store_rejects_when_pending_request_already_consumed_item_quantity(): void
+    {
+        $user = $this->createUser(['email_verified_at' => now()]);
+        [$orderDetailId, $orderId, $productId, $policyId, $shopId] = $this->seedEligibleOrder($user, 'PENDING-COMBINED');
+
+        $refundId = (int) DB::table('refund_requests')->insertGetId([
+            'order_id' => $orderId,
+            'user_id' => $user->id,
+            'shop_id' => $shopId,
+            'amount' => 45,
+            'reasons' => json_encode(['Damaged']),
+            'refund_note' => 'Pending original request.',
+            'admin_approval' => 0,
+            'seller_approval' => 0,
+            'status' => 'pending',
+            'requested_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('refund_request_items')->insert([
+            'refund_request_id' => $refundId,
+            'order_detail_id' => $orderDetailId,
+            'quantity' => 1,
+            'product_id' => $productId,
+            'applied_refund_policy_id' => $policyId,
+            'quantity_requested' => 1,
+            'item_status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->withToken($user->createToken('frontend-web')->plainTextToken)
+            ->postJson('/api/v1/user/refund-request/store', [
+                'order_id' => $orderId,
+                'refund_items' => json_encode([
+                    [
+                        'status' => true,
+                        'order_detail_id' => $orderDetailId,
+                        'quantity' => 1,
+                    ],
+                ]),
+                'refund_reasons' => 'Duplicate attempt',
+                'refund_note' => 'Second request for same unit.',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('status', 422)
+            ->assertJsonPath('message', "You can't send refund request for this order");
+    }
+
+    public function test_refund_store_requires_reason_and_details_when_policy_demands_them(): void
+    {
+        $user = $this->createUser(['email_verified_at' => now()]);
+        [$orderDetailId, $orderId] = $this->seedEligibleOrder($user, 'REASON-COMBINED', [
+            'policy' => [
+                'requires_reason' => 1,
+            ],
+        ]);
+
+        $missingReason = $this->withToken($user->createToken('frontend-web')->plainTextToken)
+            ->postJson('/api/v1/user/refund-request/store', [
+                'order_id' => $orderId,
+                'refund_items' => json_encode([
+                    [
+                        'status' => true,
+                        'order_detail_id' => $orderDetailId,
+                        'quantity' => 1,
+                    ],
+                ]),
+                'refund_reasons' => '',
+                'refund_note' => '',
+            ]);
+
+        $missingReason->assertOk()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('status', 422)
+            ->assertJsonPath('message', 'Refund reason is required for the selected item(s).');
+
+        $missingDetails = $this->withToken($user->createToken('frontend-web')->plainTextToken)
+            ->postJson('/api/v1/user/refund-request/store', [
+                'order_id' => $orderId,
+                'refund_items' => json_encode([
+                    [
+                        'status' => true,
+                        'order_detail_id' => $orderDetailId,
+                        'quantity' => 1,
+                    ],
+                ]),
+                'refund_reasons' => 'Damaged',
+                'refund_note' => '',
+            ]);
+
+        $missingDetails->assertOk()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('status', 422)
+            ->assertJsonPath('message', 'Refund details are required for the selected item(s).');
+    }
+
+    public function test_refund_store_requires_evidence_when_policy_demands_it(): void
+    {
+        $user = $this->createUser(['email_verified_at' => now()]);
+        [$orderDetailId, $orderId] = $this->seedEligibleOrder($user, 'EVIDENCE-COMBINED', [
+            'policy' => [
+                'requires_evidence' => 1,
+            ],
+        ]);
+
+        $response = $this->withToken($user->createToken('frontend-web')->plainTextToken)
+            ->postJson('/api/v1/user/refund-request/store', [
+                'order_id' => $orderId,
+                'refund_items' => json_encode([
+                    [
+                        'status' => true,
+                        'order_detail_id' => $orderDetailId,
+                        'quantity' => 1,
+                    ],
+                ]),
+                'refund_reasons' => 'Damaged',
+                'refund_note' => 'See attached evidence.',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('status', 422)
+            ->assertJsonPath('message', 'Evidence is required for the selected item(s).');
+    }
+
+    public function test_refund_create_context_marks_digital_items_ineligible_when_policy_excludes_them(): void
+    {
+        $user = $this->createUser(['email_verified_at' => now()]);
+        [, $orderId] = $this->seedEligibleOrder($user, 'DIGITAL-EXCLUDED', [
+            'policy' => [
+                'exclude_digital_products' => 1,
+            ],
+            'product' => [
+                'digital' => 1,
+            ],
+        ]);
+
+        $order = Order::query()
+            ->with([
+                'refundRequests.refundRequestItems',
+                'orderDetails.product.refundPolicy',
+            ])
+            ->findOrFail($orderId);
+
+        $decoratedOrder = app(RefundEligibilityService::class)->decorateOrder($order);
+
+        $this->assertSame(
+            'Digital products are excluded from refunds.',
+            data_get($decoratedOrder->orderDetails->first()?->getAttribute('refund_eligibility'), 'message')
+        );
+
+        $this->withToken($user->createToken('frontend-web')->plainTextToken)
+            ->getJson('/api/v1/user/refund-request/create/' . $orderId)
+            ->assertOk()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', "You can't send refund request for this order");
+    }
+
+    public function test_refund_create_context_marks_discounted_items_ineligible_when_policy_excludes_them(): void
+    {
+        $user = $this->createUser(['email_verified_at' => now()]);
+        [, $orderId] = $this->seedEligibleOrder($user, 'DISCOUNT-EXCLUDED', [
+            'policy' => [
+                'exclude_discounted_products' => 1,
+            ],
+            'product' => [
+                'discount' => 5,
+            ],
+        ]);
+
+        $order = Order::query()
+            ->with([
+                'refundRequests.refundRequestItems',
+                'orderDetails.product.refundPolicy',
+            ])
+            ->findOrFail($orderId);
+
+        $decoratedOrder = app(RefundEligibilityService::class)->decorateOrder($order);
+
+        $this->assertSame(
+            'Discounted items are excluded from refunds.',
+            data_get($decoratedOrder->orderDetails->first()?->getAttribute('refund_eligibility'), 'message')
+        );
+
+        $this->withToken($user->createToken('frontend-web')->plainTextToken)
+            ->getJson('/api/v1/user/refund-request/create/' . $orderId)
+            ->assertOk()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', "You can't send refund request for this order");
+    }
+
+    public function test_refund_store_rejects_when_quantity_exceeds_refundable_quantity(): void
+    {
+        $user = $this->createUser(['email_verified_at' => now()]);
+        [$orderDetailId, $orderId] = $this->seedEligibleOrder($user, 'QTY-BOUNDARY', [
+            'order_detail' => [
+                'quantity' => 1,
+            ],
+        ]);
+
+        $response = $this->withToken($user->createToken('frontend-web')->plainTextToken)
+            ->postJson('/api/v1/user/refund-request/store', [
+                'order_id' => $orderId,
+                'refund_items' => json_encode([
+                    [
+                        'status' => true,
+                        'order_detail_id' => $orderDetailId,
+                        'quantity' => 2,
+                    ],
+                ]),
+                'refund_reasons' => 'Too many units',
+                'refund_note' => 'Trying to refund more than purchased.',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('status', 422)
+            ->assertJsonPath('message', "You can't request more than refundable quantity");
+    }
+
+    public function test_refund_store_enforces_ownership_for_other_users_order(): void
+    {
+        $owner = $this->createUser(['email_verified_at' => now()]);
+        $other = $this->createUser(['email' => 'other-owner@example.com', 'email_verified_at' => now()]);
+        [$orderDetailId, $orderId] = $this->seedEligibleOrder($owner, 'FOREIGN-ORDER');
+
+        $response = $this->withToken($other->createToken('frontend-web')->plainTextToken)
+            ->postJson('/api/v1/user/refund-request/store', [
+                'order_id' => $orderId,
+                'refund_items' => json_encode([
+                    [
+                        'status' => true,
+                        'order_detail_id' => $orderDetailId,
+                        'quantity' => 1,
+                    ],
+                ]),
+                'refund_reasons' => 'Not mine',
+                'refund_note' => 'Should be blocked.',
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('status', 403);
+    }
+
+    public function test_product_refund_policy_assignment_persists_and_relations_resolve(): void
+    {
+        $owner = $this->createUser();
+        $shopId = $this->seedShop($owner);
+        $initialPolicyId = $this->seedRefundPolicy(['name' => 'Initial Policy', 'code' => 'initial-policy']);
+        $replacementPolicyId = $this->seedRefundPolicy(['name' => 'Replacement Policy', 'code' => 'replacement-policy']);
+        $productId = $this->seedProductWithPolicy($shopId, $initialPolicyId);
+
+        $product = Product::query()->findOrFail($productId);
+        $this->assertSame($initialPolicyId, (int) $product->refund_policy_id);
+        $this->assertSame('Initial Policy', $product->refundPolicy?->name);
+
+        $product->refund_policy_id = $replacementPolicyId;
+        $product->save();
+
+        $freshProduct = Product::query()->findOrFail($productId);
+        $this->assertSame($replacementPolicyId, (int) $freshProduct->refund_policy_id);
+        $this->assertSame('Replacement Policy', $freshProduct->refundPolicy?->name);
+    }
+
+    public function test_admin_refund_policy_routes_support_create_update_status_toggle_and_listing(): void
+    {
+        $this->withoutMiddleware();
+
+        $admin = $this->createUser([
+            'user_type' => 'admin',
+            'email_verified_at' => now(),
+        ]);
+
+        $this->actingAs($admin)
+            ->withSession([])
+            ->post(route('admin.refund_policies.store'), [
+                'name' => 'Thirty Day Policy',
+                'code' => 'thirty-day-policy',
+                'description' => 'Primary store policy',
+                'is_active' => 1,
+                'refund_window_days' => 30,
+                'allowed_order_statuses' => ['delivered'],
+                'allow_partial_refund' => 1,
+                'refund_shipping_fee' => 0,
+                'requires_admin_approval' => 1,
+                'requires_reason' => 1,
+                'requires_evidence' => 0,
+                'exclude_opened_items' => 0,
+                'exclude_digital_products' => 1,
+                'exclude_discounted_products' => 0,
+                'refund_method_type' => 'manual',
+                'internal_notes' => 'Created in test',
+            ])
+            ->assertRedirect(route('admin.refund_policies.index'));
+
+        $policy = RefundPolicy::query()->where('code', 'thirty-day-policy')->firstOrFail();
+        $this->assertSame(['delivered'], $policy->allowed_order_statuses);
+
+        $this->actingAs($admin)
+            ->withSession([])
+            ->put(route('admin.refund_policies.update', $policy->id), [
+                'name' => 'Updated Thirty Day Policy',
+                'code' => 'updated-thirty-day-policy',
+                'description' => 'Updated store policy',
+                'is_active' => 1,
+                'refund_window_days' => 21,
+                'allowed_order_statuses' => ['delivered', 'shipped'],
+                'allow_partial_refund' => 0,
+                'refund_shipping_fee' => 1,
+                'requires_admin_approval' => 1,
+                'requires_reason' => 1,
+                'requires_evidence' => 1,
+                'exclude_opened_items' => 0,
+                'exclude_digital_products' => 1,
+                'exclude_discounted_products' => 1,
+                'refund_method_type' => 'wallet',
+                'internal_notes' => 'Updated in test',
+            ])
+            ->assertRedirect(route('admin.refund_policies.index'));
+
+        $policy->refresh();
+        $this->assertSame('Updated Thirty Day Policy', $policy->name);
+        $this->assertSame(['delivered', 'shipped'], $policy->allowed_order_statuses);
+        $this->assertTrue((bool) $policy->requires_evidence);
+
+        $toggleResponse = $this->actingAs($admin)
+            ->withSession([])
+            ->post(route('admin.refund_policies.update_status'), [
+                'id' => $policy->id,
+                'status' => 0,
+            ]);
+
+        $toggleResponse->assertOk();
+        $this->assertSame('1', trim($toggleResponse->getContent()));
+        $this->assertFalse((bool) $policy->fresh()->is_active);
+
+        $view = app(RefundPolicyController::class)->index(Request::create(
+            route('admin.refund_policies.index'),
+            'GET',
+            ['status' => 0]
+        ));
+
+        $refundPolicies = $view->getData()['refundPolicies'];
+        $this->assertSame(1, $refundPolicies->count());
+        $this->assertSame('Updated Thirty Day Policy', $refundPolicies->first()->name);
+    }
+
+    public function test_admin_can_approve_refund_request_with_notes_and_quantities(): void
+    {
+        $this->withoutMiddleware();
+
+        $admin = $this->createUser([
+            'user_type' => 'admin',
+            'email_verified_at' => now(),
+        ]);
+        $customer = $this->createUser(['email' => 'refund-customer@example.com', 'email_verified_at' => now()]);
+        [$orderDetailId, $orderId, $productId, $policyId, $shopId] = $this->seedEligibleOrder($customer, 'ADMIN-APPROVE');
+        [$refundId, $refundItemId] = $this->seedPendingRefundRequestForOrder(
+            $customer,
+            $orderId,
+            $orderDetailId,
+            $productId,
+            $policyId,
+            $shopId
+        );
+
+        $response = $this->actingAs($admin)
+            ->from('/admin/refund-requests')
+            ->withSession([])
+            ->post(route('admin.refund_request.update'), [
+                'refund_request_id' => $refundId,
+                'status' => 'approved',
+                'amount' => 45,
+                'admin_notes' => 'Approved after evidence review.',
+                'approved_quantities' => [
+                    $refundItemId => 1,
+                ],
+            ]);
+
+        $response->assertStatus(302);
+
+        $this->assertDatabaseHas('refund_requests', [
+            'id' => $refundId,
+            'status' => 'approved',
+            'admin_notes' => 'Approved after evidence review.',
+            'reviewed_by' => $admin->id,
+            'admin_approval' => 1,
+            'amount' => 45,
+        ]);
+
+        $this->assertDatabaseHas('refund_request_items', [
+            'id' => $refundItemId,
+            'quantity_approved' => 1,
+            'item_status' => 'approved',
+        ]);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'refund_status' => 'fully_refunded',
+            'refund_amount' => 45,
+        ]);
+    }
+
+    public function test_admin_can_reject_refund_request_with_notes(): void
+    {
+        $this->withoutMiddleware();
+
+        $admin = $this->createUser([
+            'user_type' => 'admin',
+            'email_verified_at' => now(),
+        ]);
+        $customer = $this->createUser(['email' => 'refund-reject@example.com', 'email_verified_at' => now()]);
+        [$orderDetailId, $orderId, $productId, $policyId, $shopId] = $this->seedEligibleOrder($customer, 'ADMIN-REJECT');
+        [$refundId, $refundItemId] = $this->seedPendingRefundRequestForOrder(
+            $customer,
+            $orderId,
+            $orderDetailId,
+            $productId,
+            $policyId,
+            $shopId
+        );
+
+        $response = $this->actingAs($admin)
+            ->from('/admin/refund-requests')
+            ->withSession([])
+            ->post(route('admin.refund_request.update'), [
+                'refund_request_id' => $refundId,
+                'status' => 'rejected',
+                'admin_notes' => 'Evidence was insufficient.',
+                'approved_quantities' => [
+                    $refundItemId => 0,
+                ],
+            ]);
+
+        $response->assertStatus(302);
+
+        $this->assertDatabaseHas('refund_requests', [
+            'id' => $refundId,
+            'status' => 'rejected',
+            'admin_notes' => 'Evidence was insufficient.',
+            'reviewed_by' => $admin->id,
+            'admin_approval' => 2,
+            'amount' => 0,
+        ]);
+
+        $this->assertDatabaseHas('refund_request_items', [
+            'id' => $refundItemId,
+            'quantity_approved' => 0,
+            'item_status' => 'rejected',
+            'rejection_reason' => 'Evidence was insufficient.',
+        ]);
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $orderId,
+            'refund_amount' => 0,
         ]);
     }
 
@@ -303,6 +840,7 @@ class PhaseSevenBenefitsTest extends TestCase
             'wallets',
             'refund_request_items',
             'refund_requests',
+            'refund_policies',
             'order_updates',
             'order_details',
             'orders',
@@ -320,6 +858,11 @@ class PhaseSevenBenefitsTest extends TestCase
             'translations',
             'currencies',
             'settings',
+            'model_has_permissions',
+            'model_has_roles',
+            'role_has_permissions',
+            'permissions',
+            'roles',
             'personal_access_tokens',
             'users',
         ] as $table) {
@@ -355,6 +898,37 @@ class PhaseSevenBenefitsTest extends TestCase
             $table->timestamp('last_used_at')->nullable();
             $table->timestamp('expires_at')->nullable();
             $table->timestamps();
+        });
+
+        Schema::create('permissions', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('guard_name');
+            $table->timestamps();
+        });
+
+        Schema::create('roles', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('guard_name');
+            $table->timestamps();
+        });
+
+        Schema::create('model_has_permissions', function (Blueprint $table): void {
+            $table->unsignedBigInteger('permission_id');
+            $table->string('model_type');
+            $table->unsignedBigInteger('model_id');
+        });
+
+        Schema::create('model_has_roles', function (Blueprint $table): void {
+            $table->unsignedBigInteger('role_id');
+            $table->string('model_type');
+            $table->unsignedBigInteger('model_id');
+        });
+
+        Schema::create('role_has_permissions', function (Blueprint $table): void {
+            $table->unsignedBigInteger('permission_id');
+            $table->unsignedBigInteger('role_id');
         });
 
         Schema::create('settings', function (Blueprint $table): void {
@@ -393,6 +967,7 @@ class PhaseSevenBenefitsTest extends TestCase
         Schema::create('products', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('shop_id')->nullable();
+            $table->unsignedBigInteger('refund_policy_id')->nullable();
             $table->string('name')->nullable();
             $table->string('slug')->unique();
             $table->string('thumbnail_img')->nullable();
@@ -402,8 +977,31 @@ class PhaseSevenBenefitsTest extends TestCase
             $table->unsignedInteger('min_qty')->default(1);
             $table->unsignedInteger('max_qty')->default(10);
             $table->decimal('earn_point', 8, 2)->default(0);
+            $table->decimal('discount', 12, 2)->default(0);
+            $table->boolean('digital')->default(false);
             $table->boolean('published')->default(true);
             $table->boolean('approved')->default(true);
+            $table->timestamps();
+        });
+
+        Schema::create('refund_policies', function (Blueprint $table): void {
+            $table->id();
+            $table->string('name');
+            $table->string('code')->unique();
+            $table->text('description')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->unsignedInteger('refund_window_days')->default(7);
+            $table->text('allowed_order_statuses')->nullable();
+            $table->boolean('allow_partial_refund')->default(false);
+            $table->boolean('refund_shipping_fee')->default(false);
+            $table->boolean('requires_admin_approval')->default(true);
+            $table->boolean('requires_reason')->default(false);
+            $table->boolean('requires_evidence')->default(false);
+            $table->boolean('exclude_opened_items')->default(false);
+            $table->boolean('exclude_digital_products')->default(false);
+            $table->boolean('exclude_discounted_products')->default(false);
+            $table->string('refund_method_type')->nullable();
+            $table->text('internal_notes')->nullable();
             $table->timestamps();
         });
 
@@ -488,6 +1086,8 @@ class PhaseSevenBenefitsTest extends TestCase
             $table->decimal('grand_total', 12, 2)->default(0);
             $table->decimal('shipping_cost', 12, 2)->default(0);
             $table->decimal('coupon_discount', 12, 2)->default(0);
+            $table->string('refund_status')->nullable();
+            $table->decimal('refund_amount', 12, 2)->default(0);
             $table->string('payment_type')->nullable();
             $table->boolean('manual_payment')->default(false);
             $table->text('manual_payment_data')->nullable();
@@ -497,6 +1097,8 @@ class PhaseSevenBenefitsTest extends TestCase
             $table->string('courier_name')->nullable();
             $table->string('tracking_number')->nullable();
             $table->string('tracking_url')->nullable();
+            $table->timestamp('delivery_history_date')->nullable();
+            $table->timestamp('completed_at')->nullable();
             $table->timestamps();
         });
 
@@ -530,6 +1132,13 @@ class PhaseSevenBenefitsTest extends TestCase
             $table->text('refund_note')->nullable();
             $table->text('attachments')->nullable();
             $table->unsignedTinyInteger('admin_approval')->default(0);
+            $table->unsignedTinyInteger('seller_approval')->default(0);
+            $table->string('status')->nullable();
+            $table->text('admin_notes')->nullable();
+            $table->json('policy_snapshot')->nullable();
+            $table->timestamp('requested_at')->nullable();
+            $table->timestamp('reviewed_at')->nullable();
+            $table->unsignedBigInteger('reviewed_by')->nullable();
             $table->timestamps();
         });
 
@@ -538,6 +1147,12 @@ class PhaseSevenBenefitsTest extends TestCase
             $table->unsignedBigInteger('refund_request_id');
             $table->unsignedBigInteger('order_detail_id');
             $table->unsignedInteger('quantity')->default(1);
+            $table->unsignedBigInteger('product_id')->nullable();
+            $table->unsignedBigInteger('applied_refund_policy_id')->nullable();
+            $table->unsignedInteger('quantity_requested')->nullable();
+            $table->unsignedInteger('quantity_approved')->nullable();
+            $table->string('item_status')->nullable();
+            $table->text('rejection_reason')->nullable();
             $table->timestamps();
         });
 
@@ -686,8 +1301,14 @@ class PhaseSevenBenefitsTest extends TestCase
 
     private function seedProduct(int $shopId): int
     {
+        return $this->seedProductWithPolicy($shopId);
+    }
+
+    private function seedProductWithPolicy(int $shopId, ?int $refundPolicyId = null, array $attributes = []): int
+    {
         $productId = (int) DB::table('products')->insertGetId([
             'shop_id' => $shopId,
+            'refund_policy_id' => $refundPolicyId,
             'name' => 'Linen Shirt',
             'slug' => 'linen-shirt-' . $shopId,
             'lowest_price' => 40,
@@ -695,11 +1316,19 @@ class PhaseSevenBenefitsTest extends TestCase
             'stock' => 20,
             'min_qty' => 1,
             'max_qty' => 5,
+            'discount' => 0,
+            'digital' => 0,
             'published' => 1,
             'approved' => 1,
             'created_at' => now(),
             'updated_at' => now(),
-        ]);
+        ] + []);
+
+        if ($attributes !== []) {
+            DB::table('products')
+                ->where('id', $productId)
+                ->update($attributes);
+        }
 
         DB::table('product_translations')->insert([
             'product_id' => $productId,
@@ -720,10 +1349,40 @@ class PhaseSevenBenefitsTest extends TestCase
         return $productId;
     }
 
-    private function seedEligibleOrder(User $user, string $combinedCode = 'COMBINED-REFUND'): array
+    private function seedRefundPolicy(array $attributes = []): int
+    {
+        $name = $attributes['name'] ?? 'Standard Refund Policy';
+        $code = $attributes['code'] ?? 'standard-refund-' . str_replace('.', '', (string) microtime(true));
+
+        return (int) DB::table('refund_policies')->insertGetId([
+            'name' => $name,
+            'code' => $code,
+            'description' => $attributes['description'] ?? 'Default product refund policy',
+            'is_active' => $attributes['is_active'] ?? 1,
+            'refund_window_days' => $attributes['refund_window_days'] ?? 7,
+            'allowed_order_statuses' => json_encode($attributes['allowed_order_statuses'] ?? ['delivered']),
+            'allow_partial_refund' => $attributes['allow_partial_refund'] ?? 1,
+            'refund_shipping_fee' => $attributes['refund_shipping_fee'] ?? 0,
+            'requires_admin_approval' => $attributes['requires_admin_approval'] ?? 1,
+            'requires_reason' => $attributes['requires_reason'] ?? 0,
+            'requires_evidence' => $attributes['requires_evidence'] ?? 0,
+            'exclude_opened_items' => $attributes['exclude_opened_items'] ?? 0,
+            'exclude_digital_products' => $attributes['exclude_digital_products'] ?? 0,
+            'exclude_discounted_products' => $attributes['exclude_discounted_products'] ?? 0,
+            'refund_method_type' => $attributes['refund_method_type'] ?? 'original_method',
+            'internal_notes' => $attributes['internal_notes'] ?? null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function seedEligibleOrder(User $user, string $combinedCode = 'COMBINED-REFUND', array $options = []): array
     {
         $shopId = $this->seedShop($user);
-        $productId = $this->seedProduct($shopId);
+        $refundPolicyId = array_key_exists('refund_policy_id', $options)
+            ? $options['refund_policy_id']
+            : $this->seedRefundPolicy($options['policy'] ?? []);
+        $productId = $this->seedProductWithPolicy($shopId, $refundPolicyId, $options['product'] ?? []);
 
         $combinedOrderId = (int) DB::table('combined_orders')->insertGetId([
             'user_id' => $user->id,
@@ -743,7 +1402,15 @@ class PhaseSevenBenefitsTest extends TestCase
             'grand_total' => 45,
             'created_at' => now()->subDay(),
             'updated_at' => now()->subDay(),
+            'delivery_history_date' => now()->subDay(),
+            'completed_at' => now()->subDay(),
         ]);
+
+        if (!empty($options['order'])) {
+            DB::table('orders')
+                ->where('id', $orderId)
+                ->update($options['order']);
+        }
 
         $orderDetailId = (int) DB::table('order_details')->insertGetId([
             'order_id' => $orderId,
@@ -756,21 +1423,30 @@ class PhaseSevenBenefitsTest extends TestCase
             'updated_at' => now(),
         ]);
 
-        return [$orderDetailId, $orderId];
+        if (!empty($options['order_detail'])) {
+            DB::table('order_details')
+                ->where('id', $orderDetailId)
+                ->update($options['order_detail']);
+        }
+
+        return [$orderDetailId, $orderId, $productId, $refundPolicyId, $shopId];
     }
 
     private function seedRefundRequestGraph(User $user, string $combinedCode = 'COMBINED-REFUND'): int
     {
-        [$orderDetailId, $orderId] = $this->seedEligibleOrder($user, $combinedCode);
+        [$orderDetailId, $orderId, $productId, $policyId, $shopId] = $this->seedEligibleOrder($user, $combinedCode);
 
         $refundId = (int) DB::table('refund_requests')->insertGetId([
             'order_id' => $orderId,
             'user_id' => $user->id,
-            'shop_id' => 1,
+            'shop_id' => $shopId,
             'amount' => 45,
             'reasons' => json_encode(['Damaged']),
             'refund_note' => 'Damaged item',
             'admin_approval' => 0,
+            'seller_approval' => 0,
+            'status' => 'pending',
+            'requested_at' => now(),
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -779,11 +1455,66 @@ class PhaseSevenBenefitsTest extends TestCase
             'refund_request_id' => $refundId,
             'order_detail_id' => $orderDetailId,
             'quantity' => 1,
+            'product_id' => $productId,
+            'applied_refund_policy_id' => $policyId,
+            'quantity_requested' => 1,
+            'item_status' => 'pending',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
 
         return $refundId;
+    }
+
+    private function seedPendingRefundRequestForOrder(
+        User $user,
+        int $orderId,
+        int $orderDetailId,
+        int $productId,
+        int $policyId,
+        int $shopId,
+        array $attributes = []
+    ): array {
+        $refundId = (int) DB::table('refund_requests')->insertGetId([
+            'order_id' => $orderId,
+            'user_id' => $user->id,
+            'shop_id' => $shopId,
+            'amount' => 45,
+            'reasons' => json_encode(['Damaged']),
+            'refund_note' => 'Pending admin review.',
+            'admin_approval' => 0,
+            'seller_approval' => 0,
+            'status' => 'pending',
+            'requested_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        if (!empty($attributes['request'])) {
+            DB::table('refund_requests')
+                ->where('id', $refundId)
+                ->update($attributes['request']);
+        }
+
+        $refundItemId = (int) DB::table('refund_request_items')->insertGetId([
+            'refund_request_id' => $refundId,
+            'order_detail_id' => $orderDetailId,
+            'quantity' => 1,
+            'product_id' => $productId,
+            'applied_refund_policy_id' => $policyId,
+            'quantity_requested' => 1,
+            'item_status' => 'pending',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        if (!empty($attributes['item'])) {
+            DB::table('refund_request_items')
+                ->where('id', $refundItemId)
+                ->update($attributes['item']);
+        }
+
+        return [$refundId, $refundItemId];
     }
 
     private function seedWalletEntry(User $user, float $amount, string $details, string $type): void

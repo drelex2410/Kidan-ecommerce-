@@ -83,10 +83,14 @@ return new class extends Migration
             return 'bigint unsigned';
         }
 
+        $escapedTable = str_replace('`', '``', $table);
+        $escapedColumn = str_replace("'", "''", $column);
+
         $result = DB::selectOne(sprintf(
-            "SHOW COLUMNS FROM `%s` LIKE ?",
-            str_replace('`', '``', $table)
-        ), [$column]);
+            "SHOW COLUMNS FROM `%s` LIKE '%s'",
+            $escapedTable,
+            $escapedColumn
+        ));
 
         return strtolower((string) ($result->Type ?? 'bigint unsigned'));
     }

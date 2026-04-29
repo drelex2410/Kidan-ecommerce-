@@ -13,6 +13,7 @@
                                 class="mt-1"
                                 hide-details
                                 name="order_detail_ids"
+                                :disabled="!item.refund_eligibility || !item.refund_eligibility.is_eligible"
                             ></v-checkbox>
                         </template>
                         <template v-slot:[`item.product`]="{ item }">
@@ -25,6 +26,15 @@
                                             <span class="opacity-70">{{combination.attribute}}</span> : <span class="fw-500">{{combination.value}}</span>
                                         </span>
                                     </div>
+                                    <div class="mt-2 fs-12" v-if="item.refund_eligibility">
+                                        <span class="text-success" v-if="item.refund_eligibility.is_eligible">
+                                            {{ item.refund_eligibility.message }}
+                                            ({{ item.refund_eligibility.max_requestable_quantity }})
+                                        </span>
+                                        <span class="text-red" v-else>
+                                            {{ item.refund_eligibility.message }}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </template>
@@ -32,10 +42,11 @@
                             <vue-number-input
                                 v-model="form.refund_items[index].quantity"
                                 :min="1"
-                                :max="item.quantity"
+                                :max="item.refund_eligibility && item.refund_eligibility.max_requestable_quantity > 0 ? item.refund_eligibility.max_requestable_quantity : item.quantity"
                                 :step="1"
                                 align="center"
                                 size="110px"
+                                :disabled="!item.refund_eligibility || !item.refund_eligibility.is_eligible"
                             ></vue-number-input>
                         </template>
                         <template v-slot:[`item.unit_price`]="{ item }">
@@ -52,11 +63,14 @@
                 <v-card-title class="">{{ $t("refund_information") }}</v-card-title>
                 <v-card-text>
 
-                    <div class="mb-3" v-if="refundSettings.refund_reason_types && refundSettings.refund_reason_types.length > 0">
-                        <div class="mb-1 fs-13 fw-500">{{ $t('refund_reasons') }}</div>
-                        <v-select
+                    <div class="mb-3">
+                        <div class="mb-1 fs-13 fw-500">
+                            {{ $t('refund_reasons') }}
+                            <span v-if="requiresReason" class="text-red">*</span>
+                        </div>
+                        <v-combobox
                             v-model="form.refund_reasons"
-                            :items="refundSettings.refund_reason_types"
+                            :items="reasonSuggestions"
                             :label="$t('choose_one')"
                             :menu-props="{ offsetY: true }"
                             @blur="v$.form.refund_reasons.$touch()"
@@ -65,39 +79,42 @@
                             variant="outlined"
                             solo
                             multiple
-                            required
+                            chips
+                            clearable
                         >
-                            <!-- <template v-slot:item="{ item }">
-                                <span>{{ item.title }}</span>
-                            </template> -->
                             <template :item="{ item}" >
-                                <v-list-item :title="item.title" />
+                                <v-list-item :title="item.title || item" />
                             </template>
-                        </v-select>
-                        <!-- <p v-for="error of v$.refundReasonsErrors.$errors" :key="error.$uid" class="text-red">
-                            {{error.$message }}
-                        </p> -->
+                        </v-combobox>
+                        <p v-for="error of refundReasonsErrors" :key="error" class="text-red mt-1">
+                            {{ error }}
+                        </p>
                     </div>
 
                     <div class="mb-3">
-                        <div class="mb-1 fs-13 fw-500">{{ $t('refund_note') }}</div>
+                        <div class="mb-1 fs-13 fw-500">
+                            {{ $t('refund_note') }}
+                            <span v-if="requiresReason" class="text-red">*</span>
+                        </div>
                         <v-textarea
-                            :placeholder="$t('refund_note')"
+                            :placeholder="requiresReason ? 'Describe the issue for the selected items' : $t('refund_note')"
                             @blur="v$.form.refund_note.$touch()"
                             hide-details="auto"
                             rows="3"
                             v-model="form.refund_note"
-                            required
                             variant="outlined"
                             no-resize
                         ></v-textarea>
-                        <!-- <p v-for="error of v$.refundNoteErrors.$errors" :key="error.$uid" class="text-red">
-                            {{error.$message }}
-                        </p> -->
+                        <p v-for="error of refundNoteErrors" :key="error" class="text-red mt-1">
+                            {{ error }}
+                        </p>
                     </div>
 
                     <div class="mb-3">
-                        <div class="mb-1 fs-13 fw-500">{{ $t('attachments') }}</div>
+                        <div class="mb-1 fs-13 fw-500">
+                            {{ $t('attachments') }}
+                            <span v-if="requiresEvidence" class="text-red">*</span>
+                        </div>
                         <v-file-input
                             :label="$t('select_images')"
                             prepend-icon=""
@@ -122,6 +139,9 @@
                                 </v-chip>
                             </template>
                         </v-file-input>
+                        <p v-if="requiresEvidence" class="fs-12 text-red mb-0">
+                            Evidence is required for the selected items.
+                        </p>
                     </div>
                     <v-btn 
                         type="submit" 
@@ -140,7 +160,7 @@
 
 <script>
 import { useVuelidate } from '@vuelidate/core';
-import { required } from "@vuelidate/validators";
+import { requiredIf } from "@vuelidate/validators";
 import { mapGetters } from "vuex";
 export default {
     data: () => ({
@@ -155,18 +175,40 @@ export default {
         order: {},
         loading: false
     }),
-    validations: {
-        form: {
-            refund_reasons: {
-                // required: requiredIf(function(){
-                //     return this.refundSettings.refund_reason_types && this.refundSettings.refund_reason_types.length > 0;
-                // })
+    validations() {
+        return {
+            form: {
+                refund_reasons: {
+                    required: requiredIf(() => this.requiresReason),
+                },
+                refund_note: {
+                    required: requiredIf(() => this.requiresReason),
+                },
             },
-            refund_note: { required },
-        },
+        };
     },
     computed:{
         ...mapGetters('app',['refundSettings']),
+        selectedRefundItems() {
+            return this.form.refund_items.filter(item => item.status);
+        },
+        selectedProductMap() {
+            return new Map((this.order.products?.data || []).map(product => [product.order_detail_id, product]));
+        },
+        selectedEligibility() {
+            return this.selectedRefundItems
+                .map(item => this.selectedProductMap.get(item.order_detail_id)?.refund_eligibility)
+                .filter(Boolean);
+        },
+        requiresReason() {
+            return this.selectedEligibility.some(item => item.requires_reason);
+        },
+        requiresEvidence() {
+            return this.selectedEligibility.some(item => item.requires_evidence);
+        },
+        reasonSuggestions() {
+            return this.refundSettings?.refund_reason_types || [];
+        },
         headers(){
             let headers = [
                 {
@@ -220,11 +262,12 @@ export default {
             if(res.data.success){
                 this.orderCode = res.data.order_code
                 this.order = res.data.order
+                const preselectedOrderDetailId = Number(this.$route.query.orderDetailId || 0);
                 this.order.products.data.forEach( product => {
                     let item = {
-                        status: false,
+                        status: preselectedOrderDetailId === product.order_detail_id && product.refund_eligibility?.is_eligible,
                         order_detail_id: product.order_detail_id,
-                        quantity: product.quantity,
+                        quantity: Math.max(1, product.refund_eligibility?.max_requestable_quantity || product.quantity),
                         unit_price: product.price,
                         unit_tax: product.tax,
                     }
@@ -245,13 +288,21 @@ export default {
             const isFormCorrect = await this.v$.$validate();
             if (!isFormCorrect) return;
 
-            let refund_items = this.form.refund_items.map(item => item.status).filter(item => item)
+            let refund_items = this.selectedRefundItems
             if(refund_items.length == 0){
                 this.snack({
                     message: this.$i18n.t("please_select_a_product."),
                     color: "red"
                 });
                 return
+            }
+
+            if (this.requiresEvidence && (!this.form.attachments || this.form.attachments.length === 0)) {
+                this.snack({
+                    message: "Evidence is required for the selected items.",
+                    color: "red"
+                });
+                return;
             }
 
             this.loading = true;
@@ -268,7 +319,7 @@ export default {
             let formData = new FormData();
             formData.append('refund_items',refund_items)
             formData.append('order_id',this.order.id)
-            formData.append('refund_reasons',this.form.refund_reasons)
+            formData.append('refund_reasons',this.form.refund_reasons.join(','))
             formData.append('refund_note',this.form.refund_note)
             if(this.form.attachments){
                 this.form.attachments.forEach((file,index) =>{

@@ -7,6 +7,7 @@ use App\Models\DeliveryHistory;
 use App\Models\Order;
 use App\Models\OrderUpdate;
 use App\Models\User;
+use App\Services\Orders\OrderCompletionService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
@@ -15,7 +16,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class DeliveryOrderService
 {
-    public function __construct(private readonly DeliveryDashboardService $dashboardService)
+    public function __construct(
+        private readonly DeliveryDashboardService $dashboardService,
+        private readonly OrderCompletionService $orderCompletionService
+    )
     {
     }
 
@@ -118,6 +122,7 @@ class DeliveryOrderService
             if ($targetStatus === 'delivered' && $order->payment_type === 'cash_on_delivery' && $order->payment_status === 'unpaid') {
                 $order->payment_status = 'paid';
             }
+            $this->orderCompletionService->sync($order, $targetStatus);
             if (Schema::hasColumn('orders', 'delivery_history_date')) {
                 $order->delivery_history_date = now();
             }

@@ -14,16 +14,6 @@
           v-if="order.delivery_status == 'order_placed' && order.payment_status == 'unpaid' "
           @click="cancelOrder(order)"
         >{{ $t('cancel_order') }}</div>
-        <div
-          class="fs-12 text-red-darken-2 c-pointer"
-          v-if="is_addon_activated('refund')
-                            && (!order.has_refund_request)
-                                && order.payment_status == 'paid'
-                                    && today <= order.created_at + refundSettings.refund_request_time_period
-                                        && refundSettings.refund_request_order_status.includes(order.delivery_status)"
-          @click="refundRequest(order.id)"
-        >{{ $t('request_refund') }}
-        </div>
       </span>
     </div>
 
@@ -37,15 +27,6 @@
         v-if="order.delivery_status == 'order_placed' && order.payment_status == 'unpaid' "
         @click="cancelOrder(order)"
       >{{ $t('cancel_order') }}</div>
-      <div
-        class="fs-12 text-red c-pointer"
-        v-if="is_addon_activated('refund')
-                        && (!order.has_refund_request)
-                            && order.payment_status == 'paid'
-                                && today <= order.created_at + refundSettings.refund_request_time_period
-                                    && refundSettings.refund_request_order_status.includes(order.delivery_status)"
-        @click="refundRequest(order.id)"
-      >{{ $t('request_refund') }}</div>
     </div>
     <!-- shj -->
     <Steps :order-details="order" />
@@ -124,6 +105,16 @@
                   <span class="opacity-70">{{combination.attribute}}</span> : <span class="fw-500">{{combination.value}}</span>
                 </span>
               </div>
+              <div class="mt-2 fs-12" v-if="item.refund_eligibility">
+                <span
+                  class="text-success"
+                  v-if="item.refund_eligibility.is_eligible"
+                >{{ item.refund_eligibility.message }}</span>
+                <span
+                  class="text-red-darken-2"
+                  v-else
+                >{{ item.refund_eligibility.message }}</span>
+              </div>
             </div>
           </div>
         </template>
@@ -148,6 +139,18 @@
             class="px-2 text-primary"
           >
             {{ $t('write_a_review') }}
+          </v-btn>
+        </template>
+        <template v-slot:[`item.refund`]="{ item }">
+          <v-btn
+            v-if="canRequestRefundForItem(item)"
+            @click="refundRequest(order.id, item.order_detail_id)"
+            text
+            small
+            variant="flat"
+            class="px-2 text-red-darken-2"
+          >
+            {{ $t('request_refund') }}
           </v-btn>
         </template>
       </v-data-table>
@@ -230,7 +233,6 @@ export default {
     paid_sticker: '',
     cod_sticker: helpers.asset("/assets/img/cod_sticker.svg"),
     paid_sticker: helpers.asset("/assets/img/paid_sticker.svg"),
-    today: new Date().getTime() / 1000,
     authorizeNet: {
                 card_number: "",
                 cvv: "",
@@ -287,9 +289,20 @@ export default {
         });
       }
 
+      if (this.hasRefundableItems) {
+        headers.push({
+          title: "",
+          align: "end",
+          sortable: false,
+          value: "refund",
+        });
+      }
+
       return headers;
     },
-    ...mapGetters("app", ["refundSettings"]),
+    hasRefundableItems() {
+      return this.is_addon_activated("refund") && this.order.products.data.some(this.canRequestRefundForItem);
+    },
   },
   methods: {
     openReviewDialog(productId) {
@@ -307,11 +320,19 @@ export default {
           }
         });
     },
-    refundRequest(order_id) {
+    refundRequest(order_id, orderDetailId = null) {
       this.$router.push({
         name: "CreateRefundRequest",
         params: { orderId: order_id },
+        query: orderDetailId ? { orderDetailId } : {},
       });
+    },
+    canRequestRefundForItem(item) {
+      return !!(
+        this.is_addon_activated("refund")
+        && item.refund_eligibility
+        && item.refund_eligibility.is_eligible
+      );
     },
     async cancelConfirmed(order_id) {
       this.snack({

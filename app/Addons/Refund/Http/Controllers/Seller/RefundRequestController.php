@@ -55,6 +55,8 @@ class RefundRequestController extends Controller
             $refund_request->reasons = $request->refund_reasons != null ? json_encode($request->refund_reasons) : '[]';
             $refund_request->refund_note = $request->refund_note;
             $refund_request->attachments = $request->attachments;
+            $refund_request->status = RefundRequest::STATUS_UNDER_REVIEW;
+            $refund_request->requested_at = now();
             $refund_request->save();
 
             foreach($order->orderDetails as $key => $orderDetail){
@@ -63,6 +65,10 @@ class RefundRequestController extends Controller
                     $refund_request_item->refund_request_id = $refund_request->id;
                     $refund_request_item->order_detail_id = $orderDetail->id;
                     $refund_request_item->quantity = $request['quantity_for_'.$orderDetail->id];
+                    $refund_request_item->product_id = $orderDetail->product_id;
+                    $refund_request_item->applied_refund_policy_id = $orderDetail->product?->refund_policy_id;
+                    $refund_request_item->quantity_requested = $request['quantity_for_'.$orderDetail->id];
+                    $refund_request_item->item_status = RefundRequest::STATUS_UNDER_REVIEW;
                     $refund_request_item->save();
                }
             }
@@ -93,6 +99,9 @@ class RefundRequestController extends Controller
             abort(403);
         }
         $refund_request->seller_approval = 1;
+        if (!$refund_request->isWorkflowFinal() && $refund_request->workflowStatus() === RefundRequest::STATUS_PENDING) {
+            $refund_request->status = RefundRequest::STATUS_UNDER_REVIEW;
+        }
         $refund_request->save();
 
         OrderUpdate::create([
@@ -111,6 +120,12 @@ class RefundRequestController extends Controller
             abort(403);
         }
         $refund_request->seller_approval = 2;
+        if (!$refund_request->isWorkflowFinal() && in_array($refund_request->workflowStatus(), [
+            RefundRequest::STATUS_PENDING,
+            RefundRequest::STATUS_UNDER_REVIEW,
+        ], true)) {
+            $refund_request->status = RefundRequest::STATUS_UNDER_REVIEW;
+        }
         $refund_request->save();
 
         OrderUpdate::create([

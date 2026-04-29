@@ -6,6 +6,7 @@ use App\Models\CombinedOrder;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\Benefits\RefundEligibilityService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Schema;
@@ -14,13 +15,21 @@ use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class OrderAccountService
 {
+    public function __construct(private readonly RefundEligibilityService $refundEligibilityService)
+    {
+    }
+
     public function listForUser(User $user, int $perPage = 12): LengthAwarePaginator
     {
-        return CombinedOrder::query()
+        $orders = CombinedOrder::query()
             ->with($this->orderRelations())
             ->where('user_id', $user->id)
             ->latest()
             ->paginate($perPage);
+
+        $orders->getCollection()->transform(fn (CombinedOrder $combinedOrder) => $this->decorateCombinedOrder($combinedOrder));
+
+        return $orders;
     }
 
     public function findByCodeForUser(User $user, string $orderCode): CombinedOrder
@@ -40,15 +49,17 @@ class OrderAccountService
             }
         }
 
-        return $order;
+        return $this->decorateCombinedOrder($order);
     }
 
     public function findByCodeForGuest(string $orderCode): ?CombinedOrder
     {
-        return CombinedOrder::query()
+        $order = CombinedOrder::query()
             ->with(['user', 'orders.orderDetails.variation.product', 'orders.orderDetails.variation.combinations', 'orders.shop'])
             ->where('code', $orderCode)
             ->first();
+
+        return $order ? $this->decorateCombinedOrder($order) : null;
     }
 
     public function cancel(User $user, int $orderId): array
@@ -130,6 +141,7 @@ class OrderAccountService
             'user',
             'orders.shop',
             'orders.orderDetails.product.product_translations',
+            'orders.orderDetails.product.refundPolicy',
             'orders.orderDetails.product.taxes',
             'orders.orderDetails.variation.combinations.attribute.attribute_translations',
             'orders.orderDetails.variation.combinations.attributeValue.attribute_value_translations',
@@ -141,8 +153,18 @@ class OrderAccountService
 
         if (Schema::hasTable('refund_requests')) {
             $relations[] = 'orders.refundRequests';
+            $relations[] = 'orders.refundRequests.refundRequestItems';
         }
 
         return $relations;
+    }
+
+    private function decorateCombinedOrder(CombinedOrder $combinedOrder): CombinedOrder
+    {
+        $combinedOrder->orders->each(function (Order $order) {
+            $this->refundEligibilityService->decorateOrder($order);
+        });
+
+        return $combinedOrder;
     }
 }

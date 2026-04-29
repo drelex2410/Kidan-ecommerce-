@@ -39,7 +39,18 @@
                 <span class="opacity-70">{{combination.attribute}}</span> : <span class="fw-500">{{combination.value}}</span>
               </span>
             </div>
-            <span class="opacity-70">{{ $t('quantity') }}</span> : <span class="fw-500">{{ refunditem.quantity }}</span>
+            <div class="fs-12 mt-1">
+              <span class="opacity-70">{{ $t('quantity') }}</span> :
+              <span class="fw-500">{{ refunditem.quantity_requested ?? refunditem.quantity }}</span>
+            </div>
+            <div class="fs-12" v-if="refunditem.item_status_label">
+              <span class="opacity-70">{{ $t('status') }}</span> :
+              <span class="fw-500">{{ refunditem.item_status_label }}</span>
+            </div>
+            <div class="fs-12" v-if="refunditem.policy_name">
+              <span class="opacity-70">{{ $t('policy') }}</span> :
+              <span class="fw-500">{{ refunditem.policy_name }}</span>
+            </div>
           </div>
         </template>
 
@@ -49,23 +60,29 @@
 
         <template v-slot:[`item.status`]="{ item }">
           <v-btn
-            v-if="item.status == 0"
+            v-if="item.status_key === 'pending'"
             size="x-small"
             color="info"
             elevation="0"
-          >{{ $t('pending') }}</v-btn>
+          >{{ item.status_label || $t('pending') }}</v-btn>
           <v-btn
-            v-else-if="item.status == 1"
+            v-else-if="item.status_key === 'approved' || item.status_key === 'processed'"
             size="x-small"
             color="success"
             elevation="0"
-          >{{ $t('accepted') }}</v-btn>
+          >{{ item.status_label || $t('accepted') }}</v-btn>
           <v-btn
-            v-else="item.status == 2"
+            v-else-if="item.status_key === 'under_review'"
+            size="x-small"
+            color="warning"
+            elevation="0"
+          >{{ item.status_label }}</v-btn>
+          <v-btn
+            v-else
             size="x-small"
             color="error"
             elevation="0"
-          >{{ $t('rejected') }}</v-btn>
+          >{{ item.status_label || $t('rejected') }}</v-btn>
         </template>
       </v-data-table>
 

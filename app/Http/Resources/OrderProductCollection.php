@@ -10,6 +10,8 @@ class OrderProductCollection extends ResourceCollection
     {
         return [
             'data' => $this->collection->map(function($data) {
+                $refundEligibility = $data->getAttribute('refund_eligibility');
+
                 return [
                     'id' => $data->product ? $data->product->id : null,
                     'name' => $data->product ? $data->product->getTranslation('name') : translate('Product has been removed'),
@@ -21,6 +23,7 @@ class OrderProductCollection extends ResourceCollection
                     'quantity' => $data->quantity,
                     'order_detail_id' => $data->id,
                     'product_variation_id' => $data->product_variation_id,
+                    'refund_eligibility' => is_array($refundEligibility) ? $refundEligibility : null,
                 ];
             })
         ];

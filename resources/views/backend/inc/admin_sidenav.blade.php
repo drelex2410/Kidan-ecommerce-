@@ -341,54 +341,6 @@
                         </li>
                     @endcan
                 @endif
-
-
-                <!-- Refund -->
-                @if (addon_is_activated('refund') && (auth()->user()->can('show_refund_requests') || auth()->user()->can('show_refund_settings')))
-                    <li class="aiz-side-nav-item">
-                        <a href="#" class="aiz-side-nav-link">
-                            <svg id="Group_8930" data-name="Group 8930" xmlns="http://www.w3.org/2000/svg"
-                                xmlns:xlink="http://www.w3.org/1999/xlink" width="16" height="16" viewBox="0 0 16 16">
-                                <defs>
-                                    <clipPath id="clip-path">
-                                        <rect id="Rectangle_17178" data-name="Rectangle 17178" width="16" height="16"
-                                            fill="#707070" />
-                                    </clipPath>
-                                </defs>
-                                <g id="Group_23708" data-name="Group 23708" clip-path="url(#clip-path)">
-                                    <path id="Subtraction_80" data-name="Subtraction 80"
-                                        d="M-30-647a5.006,5.006,0,0,1-5-5,5.006,5.006,0,0,1,5-5,5.006,5.006,0,0,1,5,5A5.005,5.005,0,0,1-30-647Zm-1.637-3.979v.409a1.025,1.025,0,0,0,1.023,1.024h.191v.614h.819v-.614h.219a1.025,1.025,0,0,0,1.023-1.024v-.819a1.024,1.024,0,0,0-1.023-1.023h-1.229a.2.2,0,0,1-.2-.205v-.819a.2.2,0,0,1,.2-.2h1.229a.2.2,0,0,1,.205.2v.41h.818v-.41a1.024,1.024,0,0,0-1.023-1.023H-29.6v-.615h-.819v.615h-.191a1.024,1.024,0,0,0-1.023,1.023v.819a1.025,1.025,0,0,0,1.023,1.024h1.229a.205.205,0,0,1,.205.2v.819a.205.205,0,0,1-.205.205h-1.229a.2.2,0,0,1-.2-.205v-.409Z"
-                                        transform="translate(38 660)" fill="#707070" />
-                                    <path id="Path_26789" data-name="Path 26789"
-                                        d="M14.378,3.171H16V1.891H12.18V4.732h1.28V4.085a6.718,6.718,0,1,1-2.691-2.206L11.3.713a8,8,0,1,0,3.082,2.459"
-                                        transform="translate(0 0)" fill="#707070" />
-                                </g>
-                            </svg>
-                            <span class="aiz-side-nav-text">{{ translate('Refund') }}</span>
-                            @if (env('DEMO_MODE') == 'On')
-                                <span class="badge badge-inline badge-danger">Addon</span>
-                            @endif
-                            <span class="aiz-side-nav-arrow"></span>
-                        </a>
-                        <ul class="aiz-side-nav-list level-2">
-                            @can('show_refund_requests')
-                                <li class="aiz-side-nav-item">
-                                    <a href="{{ route('admin.refund_requests') }}" class="aiz-side-nav-link">
-                                        <span class="aiz-side-nav-text">{{ translate('Refund Requests') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-                            @can('show_refund_settings')
-                                <li class="aiz-side-nav-item">
-                                    <a href="{{ route('admin.refund_settings') }}" class="aiz-side-nav-link">
-                                        <span class="aiz-side-nav-text">{{ translate('Refund Settings') }}</span>
-                                    </a>
-                                </li>
-                            @endcan
-                        </ul>
-                    </li>
-                @endif
-
                 <!-- marketing -->
                 @canany(['show_offers','send_newsletters','show_subscribers','show_coupons'])
                     <li class="aiz-side-nav-item">
@@ -529,6 +481,66 @@
                         </a>
                     </li>
                 @endcan
+
+                <!-- Refund -->
+                @if (
+                    addon_is_activated('refund') &&
+                        (auth()->user()->can('show_refund_requests') ||
+                            auth()->user()->can('show_refund_settings') ||
+                            auth()->user()->can('show_refund_policies')))
+                    <li class="aiz-side-nav-item">
+                        <a href="#" class="aiz-side-nav-link">
+                            <svg id="Group_8930" data-name="Group 8930" xmlns="http://www.w3.org/2000/svg"
+                                xmlns:xlink="http://www.w3.org/1999/xlink" width="16" height="16" viewBox="0 0 16 16">
+                                <defs>
+                                    <clipPath id="clip-path">
+                                        <rect id="Rectangle_17178" data-name="Rectangle 17178" width="16" height="16"
+                                            fill="#707070" />
+                                    </clipPath>
+                                </defs>
+                                <g id="Group_23708" data-name="Group 23708" clip-path="url(#clip-path)">
+                                    <path id="Subtraction_80" data-name="Subtraction 80"
+                                        d="M-30-647a5.006,5.006,0,0,1-5-5,5.006,5.006,0,0,1,5-5,5.006,5.006,0,0,1,5,5A5.005,5.005,0,0,1-30-647Zm-1.637-3.979v.409a1.025,1.025,0,0,0,1.023,1.024h.191v.614h.819v-.614h.219a1.025,1.025,0,0,0,1.023-1.024v-.819a1.024,1.024,0,0,0-1.023-1.023h-1.229a.2.2,0,0,1-.2-.205v-.819a.2.2,0,0,1,.2-.2h1.229a.2.2,0,0,1,.205.2v.41h.818v-.41a1.024,1.024,0,0,0-1.023-1.023H-29.6v-.615h-.819v.615h-.191a1.024,1.024,0,0,0-1.023,1.023v.819a1.025,1.025,0,0,0,1.023,1.024h1.229a.205.205,0,0,1,.205.2v.819a.205.205,0,0,1-.205.205h-1.229a.2.2,0,0,1-.2-.205v-.409Z"
+                                        transform="translate(38 660)" fill="#707070" />
+                                    <path id="Path_26789" data-name="Path 26789"
+                                        d="M14.378,3.171H16V1.891H12.18V4.732h1.28V4.085a6.718,6.718,0,1,1-2.691-2.206L11.3.713a8,8,0,1,0,3.082,2.459"
+                                        transform="translate(0 0)" fill="#707070" />
+                                </g>
+                            </svg>
+                            <span class="aiz-side-nav-text">{{ translate('Refund') }}</span>
+                            @if (env('DEMO_MODE') == 'On')
+                                <span class="badge badge-inline badge-danger">Addon</span>
+                            @endif
+                            <span class="aiz-side-nav-arrow"></span>
+                        </a>
+                        <ul class="aiz-side-nav-list level-2">
+                            @can('show_refund_requests')
+                                <li class="aiz-side-nav-item">
+                                    <a href="{{ route('admin.refund_requests') }}"
+                                        class="aiz-side-nav-link {{ areActiveRoutes(['admin.refund_requests', 'admin.refund_request.create']) }}">
+                                        <span class="aiz-side-nav-text">{{ translate('Refund Requests') }}</span>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('show_refund_policies')
+                                <li class="aiz-side-nav-item">
+                                    <a href="{{ route('admin.refund_policies.index') }}"
+                                        class="aiz-side-nav-link {{ areActiveRoutes(['admin.refund_policies.index', 'admin.refund_policies.create', 'admin.refund_policies.edit']) }}">
+                                        <span class="aiz-side-nav-text">{{ translate('Refund Policies') }}</span>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('show_refund_settings')
+                                <li class="aiz-side-nav-item">
+                                    <a href="{{ route('admin.refund_settings') }}"
+                                        class="aiz-side-nav-link {{ areActiveRoutes(['admin.refund_settings']) }}">
+                                        <span class="aiz-side-nav-text">{{ translate('Refund Settings') }}</span>
+                                    </a>
+                                </li>
+                            @endcan
+                        </ul>
+                    </li>
+                @endif
                 <!-- Support -->
                 @can('show_chats')
                     <li class="aiz-side-nav-item">

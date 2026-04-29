@@ -96,6 +96,9 @@ export default {
       return [
         { label: "Dashboard", to: "DashBoard" },
         { label: "My Orders", to: "Orders" },
+        ...(this.is_addon_activated("refund")
+          ? [{ label: "Refund Requests", to: "RefundRequests" }]
+          : []),
         { label: "Wishlist", to: "Wishlist" },
         // { label: "Reviews", to: "Reviews" },
         { label: "Wallet", to: "Wallet" },

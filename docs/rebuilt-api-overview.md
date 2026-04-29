@@ -77,6 +77,9 @@
 ## Benefits
 
 - refund endpoints under `/api/v1/user/refund-*`
+  - item-aware eligibility is evaluated per order item using product refund policies
+  - refund requests can target partial quantities where the policy allows it
+  - admin review now uses workflow statuses such as `pending`, `under_review`, `approved`, `rejected`, and `processed`
 - wallet, club point, and affiliate user flows under `/api/v1/user/*`
 
 ## Shops / Delivery

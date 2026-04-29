@@ -393,6 +393,28 @@
                 </div>
                 <div class="card">
                     <div class="card-header">
+                        <h5 class="mb-0 h6">{{ translate('Refund Policy') }}</h5>
+                    </div>
+                    <div class="card-body">
+                        <select class="form-control aiz-selectpicker" name="refund_policy_id" data-live-search="true"
+                            title="{{ translate('Select Refund Policy') }}">
+                            @foreach ($refundPolicies as $refundPolicy)
+                                <option value="{{ $refundPolicy->id }}"
+                                    @selected((string) old('refund_policy_id') === (string) $refundPolicy->id)>
+                                    {{ $refundPolicy->name }}
+                                    @if (!$refundPolicy->is_active)
+                                        ({{ translate('Inactive') }})
+                                    @endif
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('refund_policy_id')
+                            <div class="text-danger small mt-2">{{ $message }}</div>
+                        @enderror
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
                         <h5 class="mb-0 h6">{{ translate('Product Category') }}</h5>
                         <h6 class="float-right fs-13 mb-0">
                             {{ translate('Select Main') }}

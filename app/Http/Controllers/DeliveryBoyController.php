@@ -13,6 +13,7 @@ use App\Models\DeliveryHistory;
 use App\Models\Order;
 use App\Models\State;
 use App\Models\User;
+use App\Services\Orders\OrderCompletionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -265,6 +266,7 @@ class DeliveryBoyController extends Controller
             $delivery_boy->save();
         }
         $order->delivery_history_date = date("Y-m-d H:i:s");
+        app(OrderCompletionService::class)->sync($order, (string) $order->delivery_status);
         $order->save();
         $delivery_history->save();
     }

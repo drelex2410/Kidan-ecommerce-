@@ -1,0 +1,32 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        if (! Schema::hasTable('orders') || Schema::hasColumn('orders', 'completed_at')) {
+            return;
+        }
+
+        Schema::table('orders', function (Blueprint $table): void {
+            $table->timestamp('completed_at')->nullable()->after('delivery_history_date');
+            $table->index('completed_at');
+        });
+    }
+
+    public function down(): void
+    {
+        if (! Schema::hasTable('orders') || ! Schema::hasColumn('orders', 'completed_at')) {
+            return;
+        }
+
+        Schema::table('orders', function (Blueprint $table): void {
+            $table->dropIndex(['completed_at']);
+            $table->dropColumn('completed_at');
+        });
+    }
+};

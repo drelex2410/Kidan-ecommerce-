@@ -10,7 +10,9 @@ use App\Models\OrderUpdate;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Notifications\DB\OrderNotification;
+use App\Services\Orders\OrderCompletionService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Notification;
 
 class OrderController extends Controller
@@ -241,6 +243,7 @@ class OrderController extends Controller
         }
 
         $order->delivery_status = $request->status;
+        app(OrderCompletionService::class)->sync($order, (string) $request->status);
         $order->save();
         //    affiliate status & comissionupdate
         if ($order->delivery_status == 'delivered' && $order->payment_status == 'paid') {
@@ -349,8 +352,13 @@ class OrderController extends Controller
     public function bulk_order_delivered(Request $request)
     {
         if ($request->id) {
-            Order::whereIn('id', $request->id)
-            ->update(['delivery_status' => 'delivered']);
+            $payload = ['delivery_status' => 'delivered'];
+
+            if (Schema::hasColumn('orders', 'completed_at')) {
+                $payload['completed_at'] = now();
+            }
+
+            Order::whereIn('id', $request->id)->update($payload);
         }
 
         return 1;

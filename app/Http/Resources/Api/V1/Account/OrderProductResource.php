@@ -9,6 +9,8 @@ class OrderProductResource extends JsonResource
 {
     public function toArray(Request $request): array
     {
+        $refundEligibility = $this->resource->getAttribute('refund_eligibility');
+
         return [
             'id' => $this->product ? (int) $this->product->id : null,
             'name' => $this->product ? (string) $this->product->getTranslation('name') : translate('Product has been removed'),
@@ -20,6 +22,7 @@ class OrderProductResource extends JsonResource
             'quantity' => (int) $this->quantity,
             'order_detail_id' => (int) $this->id,
             'product_variation_id' => $this->product_variation_id ? (int) $this->product_variation_id : null,
+            'refund_eligibility' => is_array($refundEligibility) ? $refundEligibility : null,
         ];
     }
 }

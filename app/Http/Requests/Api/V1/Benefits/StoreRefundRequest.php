@@ -17,7 +17,7 @@ class StoreRefundRequest extends FormRequest
             'order_id' => ['required', 'integer'],
             'refund_items' => ['required', 'string'],
             'refund_reasons' => ['nullable', 'string'],
-            'refund_note' => ['required', 'string', 'max:5000'],
+            'refund_note' => ['nullable', 'string', 'max:5000'],
             'attachments' => ['nullable', 'array'],
             'attachments.*' => ['file', 'image', 'max:5120'],
         ];

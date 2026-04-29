@@ -45,6 +45,11 @@ class Product extends Model
         return $this->belongsTo(Brand::class);
     }
 
+    public function refundPolicy()
+    {
+        return $this->belongsTo(RefundPolicy::class);
+    }
+
     public function orderDetails()
     {
         return $this->hasMany(OrderDetail::class);

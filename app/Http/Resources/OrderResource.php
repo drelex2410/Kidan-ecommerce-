@@ -16,6 +16,8 @@ class OrderResource extends JsonResource
      */
     public function toArray($request)
     {
+        $refundSummary = $this->resource->getAttribute('refund_summary');
+
         return [
             'id' => $this->id,
             'code' => $this->code,
@@ -38,7 +40,10 @@ class OrderResource extends JsonResource
             'tax' => (double) $this->calculateTotalTax($this->orderDetails),
             'products' => new OrderProductCollection($this->orderDetails),
             'created_at' => strtotime($this->created_at),
-            'has_refund_request' => $this->refundRequests->count() > 0 ? true : false, 
+            'refund_summary' => is_array($refundSummary) ? $refundSummary : null,
+            'has_refund_request' => is_array($refundSummary)
+                ? (bool) ($refundSummary['has_open_request'] ?? false)
+                : ($this->refundRequests->count() > 0 ? true : false), 
             'courier_name' => $this->courier_name, 
             'tracking_number' => $this->tracking_number, 
             'tracking_url' => $this->tracking_url, 

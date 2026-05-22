@@ -312,11 +312,13 @@ class SettingController extends Controller
 
     protected function persistSettingValue(string $type, $value): void
     {
-        $storedValue = is_array($value) ? json_encode($value) : $value;
         $settings = Setting::query()
             ->where('type', $type)
             ->orderBy('id')
             ->get();
+
+        $existingValue = $settings->last()?->value;
+        $storedValue = $this->normalizeSettingValue($type, $value, $existingValue);
 
         if ($settings->isEmpty()) {
             $setting = new Setting;
@@ -338,6 +340,44 @@ class SettingController extends Controller
             $setting->value = $storedValue;
             $setting->save();
         }
+    }
+
+    protected function normalizeSettingValue(string $type, $value, $existingValue)
+    {
+        if (!is_array($value)) {
+            return $value;
+        }
+
+        if (!$this->shouldPreserveSparseArrayEntries($type)) {
+            return json_encode($value);
+        }
+
+        $existing = [];
+        if (is_string($existingValue) && $existingValue !== '') {
+            $decoded = json_decode($existingValue, true);
+            if (is_array($decoded)) {
+                $existing = $decoded;
+            }
+        }
+
+        $merged = $value;
+        foreach ($merged as $index => $submittedValue) {
+            if (($submittedValue === null || $submittedValue === '') && array_key_exists($index, $existing)) {
+                $merged[$index] = $existing[$index];
+            }
+        }
+
+        return json_encode($merged);
+    }
+
+    protected function shouldPreserveSparseArrayEntries(string $type): bool
+    {
+        return in_array($type, [
+            'home_banner_2_images',
+            'home_banner_2_links',
+            'home_banner_4_images',
+            'home_banner_4_links',
+        ], true);
     }
 
     public function updateActivationSettings(Request $request)

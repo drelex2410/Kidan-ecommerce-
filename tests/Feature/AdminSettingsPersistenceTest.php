@@ -108,4 +108,31 @@ class AdminSettingsPersistenceTest extends TestCase
         $this->assertSame('515', get_setting($type));
         $this->assertSame(['515'], Setting::query()->where('type', $type)->pluck('value')->all());
     }
+
+    public function test_fixed_homepage_banner_arrays_preserve_existing_values_for_blank_slots(): void
+    {
+        $type = 'home_banner_4_images';
+        $this->settingTypes[] = $type;
+
+        Setting::query()->create([
+            'type' => $type,
+            'value' => json_encode(['11', '22', '33', '44']),
+        ]);
+
+        Cache::forget('settings');
+
+        $this->actingAs($this->admin)
+            ->post(route('settings.update'), [
+                'types' => [$type],
+                $type => [null, null, '99', null],
+            ])
+            ->assertRedirect();
+
+        Cache::forget('settings');
+
+        $this->assertSame(
+            json_encode(['11', '22', '99', '44']),
+            Setting::query()->where('type', $type)->value('value')
+        );
+    }
 }

@@ -12,6 +12,7 @@ use App\Models\Language;
 use App\Models\ManualPaymentMethod;
 use App\Models\Page;
 use App\Models\Product;
+use App\Services\Payments\AlatPay\AlatPayConfig;
 use Cache;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -21,6 +22,7 @@ class HomeController extends Controller
 {
     public function index(Request $request, $slug = null)
     {
+        $alatPayConfig = app(AlatPayConfig::class);
         $defaultCurrency = Currency::find(get_setting('system_default_currency'));
         $selectedCurrency = Currency::query()
             ->where('code', $request->session()->get('currency_code'))
@@ -185,7 +187,7 @@ class HomeController extends Controller
                     'img' => static_asset("assets/img/cards/payhere.png")
                 ],
                 [
-                    'status' => get_setting('alatpay_payment'),
+                    'status' => (int) $alatPayConfig->enabled(),
                     'code' => 'alatpay',
                     'name' => 'ALATPay',
                     'img' => static_asset("assets/img/cards/alatpay.svg")

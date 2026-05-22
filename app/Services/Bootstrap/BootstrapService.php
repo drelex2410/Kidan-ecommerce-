@@ -9,13 +9,15 @@ use App\Models\Currency;
 use App\Models\Language;
 use App\Models\ManualPaymentMethod;
 use App\Models\Setting;
+use App\Services\Payments\AlatPay\AlatPayConfig;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 
 class BootstrapService
 {
     public function __construct(
-        private readonly AddonStatusManager $addonStatusManager
+        private readonly AddonStatusManager $addonStatusManager,
+        private readonly AlatPayConfig $alatPayConfig,
     ) {
     }
 
@@ -183,12 +185,15 @@ class BootstrapService
             ['setting' => 'myfatoorah_payment', 'code' => 'myfatoorah', 'name' => 'Myfatoorah', 'img' => 'assets/img/cards/myfatoorah.png'],
             ['setting' => 'phonepe_payment', 'code' => 'phonepe', 'name' => 'Phonepe', 'img' => 'assets/img/cards/phonepe.png'],
             ['setting' => 'payhere_payment', 'code' => 'payhere', 'name' => 'Payhere', 'img' => 'assets/img/cards/payhere.png'],
+            ['setting' => 'alatpay_payment', 'code' => 'alatpay', 'name' => 'ALATPay', 'img' => 'assets/img/cards/alatpay.svg'],
             ['setting' => 'cash_payment', 'code' => 'cash_on_delivery', 'name' => 'Cash on Delivery', 'img' => 'assets/img/cards/cod.png'],
         ];
 
         return collect($definitions)->map(function (array $definition) use ($settings) {
             return [
-                'status' => $this->intSetting($settings, $definition['setting']),
+                'status' => $definition['code'] === 'alatpay'
+                    ? (int) $this->alatPayConfig->enabled()
+                    : $this->intSetting($settings, $definition['setting']),
                 'code' => $definition['code'],
                 'name' => $definition['name'],
                 'img' => static_asset($definition['img']),

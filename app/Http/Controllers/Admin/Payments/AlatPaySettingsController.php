@@ -17,6 +17,7 @@ class AlatPaySettingsController extends Controller
     public function update(Request $request): RedirectResponse
     {
         $validated = $request->validate([
+            'alatpay_payment' => ['nullable', 'boolean'],
             'alatpay_env' => ['required', 'in:sandbox,production'],
             'alatpay_base_url' => ['required', 'url', 'max:255'],
             'alatpay_merchant_id' => ['required', 'string', 'max:191'],
@@ -30,6 +31,8 @@ class AlatPaySettingsController extends Controller
             'alatpay_charge_flat' => ['required', 'numeric', 'min:0'],
             'alatpay_charge_percent' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
+
+        $validated['alatpay_payment'] = $request->boolean('alatpay_payment');
 
         $validated['alatpay_supported_currencies'] = collect(explode(',', $validated['alatpay_supported_currencies']))
             ->map(static fn (string $currency): string => strtoupper(trim($currency)))

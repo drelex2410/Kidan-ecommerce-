@@ -72,7 +72,7 @@ class MyfatoorahPaymentController extends Controller
 
         $currency_code = \App\Models\Currency::find(get_setting('system_default_currency'))->code;
         $paymentMethodId = session('amount');
-        $callbackURL = route('myfatoorah.callback');
+        $callbackURL = route('myfatoorah.payment_callback');
 
         $data = [
             'InvoiceValue'       => $amount,

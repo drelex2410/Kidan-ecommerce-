@@ -202,6 +202,7 @@ class AlatPayConfig
     public function save(array $validated): void
     {
         $pairs = [
+            'enabled' => (string) ((int) ($validated['alatpay_payment'] ?? 0)),
             'environment' => $validated['alatpay_env'],
             'base_url' => $validated['alatpay_base_url'],
             'merchant_id' => $validated['alatpay_merchant_id'] ?? null,

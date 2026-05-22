@@ -74,7 +74,7 @@ Route::group(['prefix' => 'payment'], function () {
     // razorpay
     Route::post('razorpay/payment', [RazorpayPaymentController::class, 'payment'])->name('razorpay.payment');
     // myfatoorah
-    Route::any('myfatoorah/payment', [MyfatoorahPaymentController::class, 'callback'])->name('myfatoorah.callback');
+    Route::any('myfatoorah/payment', [MyfatoorahPaymentController::class, 'callback'])->name('myfatoorah.payment_callback');
 
     //Payfast routes <starts>
     Route::controller(PayfastPaymentController::class)->group(function () {
@@ -124,7 +124,7 @@ Route::get('/blog-details/{slug}', SpaController::class)->name('blog.details');
 
 
 //Address
-Route::resource('addresses', AddressController::class);
+Route::resource('addresses', AddressController::class)->except(['update', 'destroy']);
 Route::controller(AddressController::class)->group(function () {
     Route::post('/get-states', 'getStates')->name('get-state');
     Route::post('/get-cities', 'getCities')->name('get-city');

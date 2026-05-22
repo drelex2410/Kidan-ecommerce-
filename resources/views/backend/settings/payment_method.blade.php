@@ -430,8 +430,9 @@
                                 <label class="col-from-label">{{ translate('Activation') }}</label>
                             </div>
                             <div class="col-md-8">
+                                <input type="hidden" name="alatpay_payment" value="0">
                                 <label class="aiz-switch aiz-switch-success mb-0">
-                                    <input type="checkbox" onchange="updateSettings(this, 'alatpay_payment')"
+                                    <input type="checkbox" name="alatpay_payment" value="1" onchange="updateSettings(this, 'alatpay_payment')"
                                         @if (get_setting('alatpay_payment') == 1) checked @endif>
                                     <span class="slider round"></span>
                                 </label>

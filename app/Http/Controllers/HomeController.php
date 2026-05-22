@@ -21,6 +21,12 @@ class HomeController extends Controller
 {
     public function index(Request $request, $slug = null)
     {
+        $defaultCurrency = Currency::find(get_setting('system_default_currency'));
+        $selectedCurrency = Currency::query()
+            ->where('code', $request->session()->get('currency_code'))
+            ->where('status', 1)
+            ->first() ?: $defaultCurrency;
+
         $meta = [
             'meta_title' => get_setting('meta_title'),
             'meta_description' => get_setting('meta_description'),
@@ -82,7 +88,7 @@ class HomeController extends Controller
             'cacheVersion' => get_setting('force_cache_clear_version'),
             'appLanguage' => env('DEFAULT_LANGUAGE'),
             'allLanguages' => Language::where('status', 1)->get(['name', 'code', 'flag', 'rtl']),
-            // 'allCurrencies' => Currency::all(),
+            'allCurrencies' => Currency::where('status', 1)->get(['id', 'name', 'symbol', 'code', 'exchange_rate']),
             'availableCountries' => Country::where('status', 1)->pluck('code')->toArray(),
             'primaryColor' => get_setting('base_color', '#000'),
             'shop_registration_message' => [
@@ -179,6 +185,12 @@ class HomeController extends Controller
                     'img' => static_asset("assets/img/cards/payhere.png")
                 ],
                 [
+                    'status' => get_setting('alatpay_payment'),
+                    'code' => 'alatpay',
+                    'name' => 'ALATPay',
+                    'img' => static_asset("assets/img/cards/alatpay.svg")
+                ],
+                [
                     'status' => get_setting('cash_payment'),
                     'code' => 'cash_on_delivery',
                     'name' => translate('Cash on Delivery'),
@@ -208,9 +220,13 @@ class HomeController extends Controller
                     'twitter' => get_setting('twitter_login'),
                 ],
                 'currency' => [
-                    'code' => Cache::remember('system_default_currency_symbol', 86400, function () {
-                        return Currency::find(get_setting('system_default_currency'))->symbol;
-                    }),
+                    'code' => $selectedCurrency?->symbol ?: $defaultCurrency?->symbol,
+                    'default_currency_code' => $defaultCurrency?->code,
+                    'default_currency_symbol' => $defaultCurrency?->symbol,
+                    'default_currency_exchange_rate' => (float) ($defaultCurrency?->exchange_rate ?: 1),
+                    'selected_currency_code' => $selectedCurrency?->code ?: $defaultCurrency?->code,
+                    'selected_currency_symbol' => $selectedCurrency?->symbol ?: $defaultCurrency?->symbol,
+                    'selected_currency_exchange_rate' => (float) ($selectedCurrency?->exchange_rate ?: $defaultCurrency?->exchange_rate ?: 1),
                     'decimal_separator' => get_setting('decimal_separator'),
                     'symbol_format' => get_setting('symbol_format'),
                     'no_of_decimals' => get_setting('no_of_decimals'),

@@ -20,7 +20,9 @@ class UserCollection extends JsonResource
             'name' => $this->name,
             'email' => $this->email,
             'phone' => $this->phone,
+            'date_of_birth' => optional($this->date_of_birth)->format('Y-m-d'),
             'user_type' => $this->user_type,
+            'club_points' => round((float) ($this->club_points ?? 0), 6),
             'avatar' => $this->avatar ? api_asset($this->avatar) : '',
         ];
     }

@@ -687,6 +687,32 @@ class PhaseSevenBenefitsTest extends TestCase
         $this->assertSame(3, $response->json());
     }
 
+    public function test_club_point_conversion_preserves_high_decimal_precision(): void
+    {
+        $user = $this->createUser(['email_verified_at' => now(), 'balance' => 0]);
+        DB::table('settings')
+            ->where('type', 'club_point_convert_rate')
+            ->update([
+                'value' => '0.000001',
+                'updated_at' => now(),
+            ]);
+        $clubPointId = $this->seedClubPoint($user, 0.000123);
+        $token = $user->createToken('frontend-web')->plainTextToken;
+
+        $this->withToken($token)
+            ->getJson('/api/v1/user/earning/history?page=1')
+            ->assertOk()
+            ->assertJsonPath('data.0.points', 0.000123);
+
+        $response = $this->withToken($token)
+            ->postJson('/api/v1/user/convert-point-into-wallet', ['id' => $clubPointId]);
+
+        $response->assertOk();
+        $this->assertSame(1, $response->json());
+        $this->assertSame('123.00', number_format((float) $user->fresh()->balance, 2, '.', ''));
+        $this->assertSame('0.000000', number_format((float) $user->fresh()->club_points, 6, '.', ''));
+    }
+
     public function test_affiliate_registration_balance_and_referral_contracts_work(): void
     {
         $user = $this->createUser(['email_verified_at' => now()]);
@@ -884,7 +910,7 @@ class PhaseSevenBenefitsTest extends TestCase
             $table->string('user_type')->default('customer');
             $table->boolean('banned')->default(false);
             $table->decimal('balance', 12, 2)->default(0);
-            $table->unsignedInteger('club_points')->default(0);
+            $table->decimal('club_points', 20, 6)->default(0);
             $table->rememberToken();
             $table->timestamps();
         });
@@ -976,7 +1002,7 @@ class PhaseSevenBenefitsTest extends TestCase
             $table->unsignedInteger('stock')->default(0);
             $table->unsignedInteger('min_qty')->default(1);
             $table->unsignedInteger('max_qty')->default(10);
-            $table->decimal('earn_point', 8, 2)->default(0);
+            $table->decimal('earn_point', 20, 6)->default(0);
             $table->decimal('discount', 12, 2)->default(0);
             $table->boolean('digital')->default(false);
             $table->boolean('published')->default(true);
@@ -1172,7 +1198,7 @@ class PhaseSevenBenefitsTest extends TestCase
         Schema::create('club_points', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('user_id');
-            $table->unsignedInteger('points')->default(0);
+            $table->decimal('points', 20, 6)->default(0);
             $table->unsignedBigInteger('combined_order_id')->nullable();
             $table->unsignedTinyInteger('convert_status')->default(0);
             $table->timestamps();
@@ -1532,7 +1558,7 @@ class PhaseSevenBenefitsTest extends TestCase
         ]);
     }
 
-    private function seedClubPoint(User $user, int $points, string $paymentStatus = 'paid'): int
+    private function seedClubPoint(User $user, float $points, string $paymentStatus = 'paid'): int
     {
         $combinedOrderId = (int) DB::table('combined_orders')->insertGetId([
             'user_id' => $user->id,

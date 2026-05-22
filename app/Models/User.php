@@ -29,6 +29,7 @@ class User extends Authenticatable implements MustVerifyEmail
         'email',
         'password',
         'phone',
+        'date_of_birth',
         'avatar',
         'provider_id',
         'email_verified_at',
@@ -55,9 +56,10 @@ class User extends Authenticatable implements MustVerifyEmail
         'email_verified_at' => 'datetime',
         'phone_verified_at' => 'datetime',
         'verification_sent_at' => 'datetime',
+        'date_of_birth' => 'date',
         'banned' => 'boolean',
         'balance' => 'decimal:2',
-        'club_points' => 'integer',
+        'club_points' => 'decimal:6',
     ];
 
     public function getFirstNameAttribute(): string

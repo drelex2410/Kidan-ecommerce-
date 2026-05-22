@@ -9,6 +9,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Models\Wallet;
+use App\Support\ClubPointMath;
 use Artisan;
 use Auth;
 use Illuminate\Http\Request;
@@ -35,9 +36,15 @@ class ClubPointController extends Controller
 
     public function set_products_point(Request $request)
     {
+        $validated = $request->validate([
+            'point' => ['required', 'numeric', 'min:0'],
+            'min_price' => ['required', 'numeric', 'min:0'],
+            'max_price' => ['required', 'numeric', 'min:0'],
+        ]);
+
         $products = Product::where('lowest_price', '>=', $request->min_price)->where('highest_price', '<=', $request->max_price)->get();
         foreach ($products as $product) {
-            $product->earn_point = $request->point;
+            $product->earn_point = ClubPointMath::normalize($validated['point']);
             $product->save();
         }
         flash(translate('Point has been inserted successfully for ') . count($products) . translate(' products'))->success();
@@ -46,9 +53,13 @@ class ClubPointController extends Controller
 
     public function set_all_products_point(Request $request)
     {
+        $validated = $request->validate([
+            'point' => ['required', 'numeric', 'min:0'],
+        ]);
+
         $products = Product::all();
-        foreach ($products as $product) {;
-            $product->earn_point = product_base_price($product) * $request->point;
+        foreach ($products as $product) {
+            $product->earn_point = ClubPointMath::multiply(product_base_price($product), $validated['point']);
             $product->save();
         }
         flash(translate('Point has been inserted successfully for ') . count($products) . translate(' products'))->success();
@@ -63,8 +74,12 @@ class ClubPointController extends Controller
 
     public function update_product_point(Request $request, $id)
     {
+        $validated = $request->validate([
+            'point' => ['required', 'numeric', 'min:0'],
+        ]);
+
         $product = Product::findOrFail($id);
-        $product->earn_point = $request->point;
+        $product->earn_point = ClubPointMath::normalize($validated['point']);
         $product->save();
         flash(translate('Point has been updated successfully'))->success();
         return redirect()->route('club_points.configs');
@@ -72,13 +87,17 @@ class ClubPointController extends Controller
 
     public function convert_rate_store(Request $request)
     {
+        $validated = $request->validate([
+            'value' => ['required', 'numeric', 'min:0.000001'],
+        ]);
+
         $club_point_convert_rate = Setting::where('type', $request->type)->first();
         if ($club_point_convert_rate != null) {
-            $club_point_convert_rate->value = $request->value;
+            $club_point_convert_rate->value = ClubPointMath::normalize($validated['value']);
         } else {
             $club_point_convert_rate = new Setting;
             $club_point_convert_rate->type = $request->type;
-            $club_point_convert_rate->value = $request->value;
+            $club_point_convert_rate->value = ClubPointMath::normalize($validated['value']);
         }
         $club_point_convert_rate->save();
 
@@ -92,10 +111,10 @@ class ClubPointController extends Controller
     {
         $club_point = new ClubPoint;
         $club_point->user_id = $order->user_id;
-        $club_point->points = 0;
+        $club_point->points = ClubPointMath::normalize(0);
         foreach ($order->orderDetails as $key => $orderDetail) {
-            $total_pts = ($orderDetail->product->earn_point) * $orderDetail->quantity;
-            $club_point->points += $total_pts;
+            $total_pts = ClubPointMath::multiply($orderDetail->product->earn_point, $orderDetail->quantity);
+            $club_point->points = ClubPointMath::add($club_point->points, $total_pts);
         }
         $club_point->order_id = $order->id;
         $club_point->convert_status = 0;
@@ -105,7 +124,7 @@ class ClubPointController extends Controller
             $club_point_detail = new ClubPointDetail;
             $club_point_detail->club_point_id = $club_point->id;
             $club_point_detail->product_id = $orderDetail->product_id;
-            $club_point_detail->point = ($orderDetail->product->earn_point) * $orderDetail->quantity;
+            $club_point_detail->point = ClubPointMath::multiply($orderDetail->product->earn_point, $orderDetail->quantity);
             $club_point_detail->save();
         }
     }
@@ -122,12 +141,18 @@ class ClubPointController extends Controller
         if ($club_point->convert_status == 0) {
             $wallet = new Wallet;
             $wallet->user_id = Auth::user()->id;
-            $wallet->amount = floatval($club_point->points / get_setting('club_point_convert_rate'));
+            $rate = ClubPointMath::normalize(get_setting('club_point_convert_rate', 1));
+            if (ClubPointMath::compare($rate, '0') === 0) {
+                $rate = ClubPointMath::normalize(1);
+            }
+
+            $walletAmount = ClubPointMath::divide($club_point->points, $rate);
+            $wallet->amount = ClubPointMath::toFloat($walletAmount);
             $wallet->payment_method = 'Club Point Convert';
             $wallet->payment_details = 'Club Point Convert';
             $wallet->save();
             $user = Auth::user();
-            $user->balance = $user->balance + floatval($club_point->points / get_setting('club_point_convert_rate'));
+            $user->balance = (float) $user->balance + ClubPointMath::toFloat($walletAmount);
             $user->save();
             $club_point->convert_status = 1;
         }

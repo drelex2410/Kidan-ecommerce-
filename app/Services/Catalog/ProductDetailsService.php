@@ -26,7 +26,7 @@ class ProductDetailsService
             ->first();
     }
 
-    public function related(int $productId, int $limit = 10): Collection
+    public function related(int $productId, int $limit = 4): Collection
     {
         $product = Product::query()->with('product_categories')->find($productId);
         if (!$product) {
@@ -44,7 +44,7 @@ class ProductDetailsService
             ->get();
     }
 
-    public function boughtTogether(int $productId, int $limit = 10): Collection
+    public function boughtTogether(int $productId, int $limit = 4): Collection
     {
         $orderIds = OrderDetail::query()->where('product_id', $productId)->pluck('order_id')->all();
         if ($orderIds === []) {

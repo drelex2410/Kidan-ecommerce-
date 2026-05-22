@@ -28,6 +28,15 @@
                             {{error.$message }}
                         </p> -->
 
+                        <label>Date of Birth</label>
+                        <v-text-field
+                          v-model="form.date_of_birth"
+                          type="date"
+                          variant="outlined"
+                          hide-details="auto"
+                          class="mb-3"
+                        ></v-text-field>
+
                         <!-- <label>{{ $t("old_password") }}</label>
                         <v-text-field placeholder="******" type="password" v-model="form.oldPassword" :error-messages="oldPasswordErrors" variant="outlined" hide-details="auto" class="mb-3"></v-text-field> -->
 
@@ -173,6 +182,7 @@ export default {
             oldPassword: "",
             password: "",
             confirmPassword: "",
+            date_of_birth: "",
         },
         passwordShow: false,
         addDialogShow: false,
@@ -216,6 +226,7 @@ export default {
         this.form.name = this.currentUser.name
         this.form.email = this.currentUser.email
         this.form.phone = this.currentUser.phone
+        this.form.date_of_birth = this.currentUser.date_of_birth || ""
         this.form.previewAvatar = this.currentUser.avatar
 
         this.fetchAddresses();

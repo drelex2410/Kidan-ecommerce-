@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AddonController;
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\Admin\Payments\AlatPaySettingsController;
 use App\Http\Controllers\AizUploadController;
 use App\Http\Controllers\AttributeController;
 use App\Http\Controllers\AttributeValueController;
@@ -204,6 +205,7 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'admin']], function 
     Route::get('/smtp-settings', [SettingController::class, 'smtp_settings'])->name('smtp_settings.index');
     Route::post('/env_key_update', [SettingController::class, 'env_key_update'])->name('env_key_update.update');
     Route::post('/payment_method_update', [SettingController::class, 'payment_method_update'])->name('payment_method.update');
+    Route::post('/payment-method/alatpay', [AlatPaySettingsController::class, 'update'])->name('alatpay.settings.update');
 
     Route::get('/third-party-settings', [SettingController::class, 'third_party_settings'])->name('third_party_settings.index');
     Route::post('/google_analytics', [SettingController::class, 'google_analytics_update'])->name('google_analytics.update');

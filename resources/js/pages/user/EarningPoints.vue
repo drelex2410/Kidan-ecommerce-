@@ -11,7 +11,7 @@
           class="d-flex justify-center align-center white--text flex-column"
         >
           <div class="fs-16 mb-3 text-primary text-capitalize">{{ $t("exchange_rate") }}</div>
-          <div class="fw-700 fs-30">{{ generalSettings.club_point_convert_rate }} {{ $t("points") }} = {{ format_price(1) }} {{ $t("wallet_money") }} </div>
+          <div class="fw-700 fs-30">{{ format_points(generalSettings.club_point_convert_rate) }} {{ $t("points") }} = {{ format_price(1) }} {{ $t("wallet_money") }} </div>
         </v-sheet>
       </v-col>
     </v-row>
@@ -37,7 +37,7 @@
         </template>
 
         <template v-slot:[`item.points`]="{ item }">
-          <span class="fw-600">{{ item.points }} {{ $t("pts") }}</span>
+          <span class="fw-600">{{ format_points(item.points) }} {{ $t("pts") }}</span>
         </template>
 
         <template v-slot:[`item.converted`]="{ item }">

@@ -305,7 +305,7 @@ export default {
   font-weight: 700;
   line-height: 1.05;
   margin-bottom: 24px;
-  font-family: 'Arial Black', 'Arial Bold', sans-serif;
+  font-family: 'Open Sans', sans-serif;
   letter-spacing: -1.6px;
   text-wrap: balance;
   max-width: 10ch;
@@ -333,7 +333,7 @@ export default {
   font-weight: 400;
   margin-bottom: 16px;
   line-height: 1.55;
-  font-family: Arial, sans-serif;
+  font-family: 'Open Sans', sans-serif;
   max-width: 28ch;
 }
 

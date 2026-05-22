@@ -65,6 +65,7 @@ class PhaseTwoAuthTest extends TestCase
         $this->assertDatabaseHas('users', [
             'email' => 'alex@example.com',
             'user_type' => 'customer',
+            'club_points' => 10,
         ]);
         Mail::assertNothingSent();
     }
@@ -486,6 +487,7 @@ class PhaseTwoAuthTest extends TestCase
             $table->string('name');
             $table->string('email')->nullable()->unique();
             $table->string('phone')->nullable()->unique();
+            $table->date('date_of_birth')->nullable();
             $table->string('avatar')->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->timestamp('phone_verified_at')->nullable();
@@ -495,7 +497,7 @@ class PhaseTwoAuthTest extends TestCase
             $table->string('user_type')->default('customer');
             $table->boolean('banned')->default(false);
             $table->decimal('balance', 12, 2)->default(0);
-            $table->unsignedInteger('club_points')->default(0);
+            $table->decimal('club_points', 20, 6)->default(0);
             $table->unsignedBigInteger('shop_id')->nullable();
             $table->rememberToken();
             $table->timestamps();

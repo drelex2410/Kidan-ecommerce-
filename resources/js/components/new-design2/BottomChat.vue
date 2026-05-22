@@ -5,7 +5,7 @@
       @click.stop="openChatWindow">
       <span class="lv-chat-button-content">
         <img :src="static_asset('/assets/img/chat.svg')" height="20" class="lv-chat-icon" />
-        <span class="lv-chat-button-text">{{ $t("talk_with_us") }}</span>
+        <span class="lv-chat-button-text">Talk With Us</span>
       </span>
     </button>
 
@@ -182,7 +182,7 @@ export default {
   padding: 14px 28px;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  font-family: 'Open Sans', sans-serif;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   z-index: 999;
 }
@@ -219,7 +219,7 @@ export default {
   border-radius: 16px;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
-  font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  font-family: 'Open Sans', sans-serif;
   z-index: 1000;
   overflow: hidden;
 }

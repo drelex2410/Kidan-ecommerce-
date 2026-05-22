@@ -13,6 +13,7 @@ class ProfileService
     public function update(User $user, array $payload, ?UploadedFile $avatar = null): User
     {
         $user->name = $payload['name'];
+        $user->date_of_birth = $payload['date_of_birth'] ?? null;
 
         if (!empty($payload['password'])) {
             $user->password = Hash::make($payload['password']);

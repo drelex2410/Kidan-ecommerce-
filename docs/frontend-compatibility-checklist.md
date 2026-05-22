@@ -57,8 +57,8 @@
 | Shop public endpoints | `GET /api/v1/shop/*`, `GET /api/v1/all-shops`, `POST /api/v1/shop/register` | Implemented | Rebuild covers `all-shops`, `shop/{slug}`, `shop/{slug}/home`, `shop/{slug}/coupons`, `shop/{slug}/products`, and the active SPA `shop/register` flow with storefront-compatible payloads and visibility rules (`published`, `approval`, `verification_status`) |
 | Delivery endpoints | `GET/POST /api/v1/delivery-boy/*` | Implemented | Rebuild covers dashboard, assigned/pending/picked-up/on-the-way/completed/cancelled lists, collections/earnings ledgers, cancel request, and status transitions with bearer-token auth and delivery-boy role enforcement |
 | Payment initialize | `POST /api/v1/payment/{gateway}/pay` | Implemented | Phase 9 rebuild now validates ownership/payable state, returns explicit JSON for API callers, and keeps online handoff metadata aligned with the existing SPA contract |
-| Web payment handoff | `POST /payment/{gateway}/pay` | Implemented | Phase 9 rebuild preserves the browser-form gateway handoff used by checkout, wallet recharge, and re-payment dialogs while routing through a new payment initialization service |
-| Payment callbacks | Web callback routes | Implemented | Existing gateway callback/return paths now reconcile through an idempotent Phase 9 callback service; Stripe/PayPal/Paystack/Flutterwave/etc. continue to use their legacy public route names |
+| Web payment handoff | `POST /payment/{gateway}/pay` | Implemented | Phase 9 rebuild preserves the browser-form gateway handoff used by checkout, wallet recharge, and re-payment dialogs while routing through a new payment initialization service. ALATPay now rides the same shared entry point and redirects to an internal transfer-instruction screen. |
+| Payment callbacks | Web callback routes | Implemented | Existing gateway callback/return paths now reconcile through an idempotent Phase 9 callback service; Stripe/PayPal/Paystack/Flutterwave/etc. continue to use their legacy public route names. ALATPay adds queued webhook ingestion plus reconciliation polling through `/api/v1/payment/alatpay/webhook` and `/payment/alatpay/verify/{reference}`. |
 
 ## Final Phase 10 Audit
 
@@ -80,6 +80,7 @@
 - order cancel and several address actions still preserve legacy GET path shapes because the SPA depends on them directly
 - public payment callback route names remain legacy because external gateways and the current frontend handoff already depend on those exact paths
 - provider-specific payment controllers still exist as gateway bridges, but shared initialization and reconciliation now go through the rebuilt Phase 9 services
+- ALATPay’s provider docs are partially portal-gated, so endpoint paths remain configurable through env/config instead of being frozen into one irreversible code path
 
 ### Unused or not rebuilt because not required by the active SPA
 

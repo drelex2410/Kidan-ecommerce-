@@ -15,6 +15,7 @@ class UpdateProfileRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
+            'date_of_birth' => ['nullable', 'date', 'before_or_equal:today'],
             'password' => ['nullable', 'string', 'min:6', 'same:confirmPassword'],
             'confirmPassword' => ['nullable', 'string', 'min:6'],
             'avatar' => ['nullable', 'image', 'max:5120'],

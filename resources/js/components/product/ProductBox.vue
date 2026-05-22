@@ -160,7 +160,7 @@
                   />
                 </g>
               </svg>
-              <div class="fs-11 ms-1">{{ productDetails.earn_point }} {{ $t('points') }}</div>
+              <div class="fs-11 ms-1">{{ format_points(productDetails.earn_point) }} {{ $t('points') }}</div>
             </div>
 
             <template v-if="!productDetails.stock && boxStyle != 'two'">

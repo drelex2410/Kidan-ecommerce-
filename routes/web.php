@@ -3,8 +3,10 @@
 use App\Http\Controllers\AddressController;
 use App\Http\Controllers\AizUploadController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\CurrencyController;
 use App\Http\Controllers\SpaController;
 use App\Http\Controllers\Web\Payments\PaymentInitializationController as WebPaymentInitializationController;
+use App\Http\Controllers\Payment\AlatPayController;
 use App\Http\Controllers\Payment\FlutterwavePaymentController;
 use App\Http\Controllers\Payment\MercadopagoPaymentController;
 use App\Http\Controllers\Payment\MyfatoorahPaymentController;
@@ -58,6 +60,11 @@ Route::group(['prefix' => 'payment'], function () {
     Route::any('/paystack/callback', [PaystackPaymentController::class, 'return'])->name('paystack.return');
     Route::any('/paystack/new-callback', [PaystackPaymentController::class, 'paystackNewCallback']);
 
+    // alatpay
+    Route::get('/alatpay/checkout/{reference}', [AlatPayController::class, 'checkout'])->name('alatpay.checkout');
+    Route::get('/alatpay/status/{reference}', [AlatPayController::class, 'status'])->name('alatpay.status');
+    Route::post('/alatpay/verify/{reference}', [AlatPayController::class, 'verify'])->name('alatpay.verify');
+
     //paytm
     Route::any('/paytm/callback', [PaytmPaymentController::class, 'callback'])->name('paytm.callback');
 
@@ -105,6 +112,7 @@ Route::group(['prefix' => 'payment'], function () {
 Route::any('/social-login/redirect/{provider}', [LoginController::class, 'redirectToProvider'])->name('social.login');
 Route::get('/social-login/{provider}/callback', [LoginController::class, 'handleProviderCallback'])->name('social.callback');
 Route::get('/uploads/{upload}/file', [AizUploadController::class, 'serve'])->name('uploads.file');
+Route::post('/currency/change', [CurrencyController::class, 'changeCurrency'])->name('currency.change');
 
 
 Route::get('/product/{slug}', SpaController::class)->name('product');

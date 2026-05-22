@@ -23,7 +23,7 @@ class ProductCollection extends ResourceCollection
                     'min_qty' => $data->min_qty,
                     'max_qty' => $data->max_qty,
                     'rating' => (double) $data->rating,
-                    'earn_point' => (float) $data->earn_point,
+                    'earn_point' => round((float) $data->earn_point, 6),
                     'is_variant' => (int) $data->is_variant,
                     'variations' => $data->variations,
                     'is_digital' => $data->digital == 1 ? true : false,

@@ -26,6 +26,7 @@ use App\Models\Wallet;
 use App\Notifications\DB\OrderNotification;
 use App\Notifications\OrderPlacedNotification;
 use App\Notifications\SellerInvoiceNotification;
+use App\Support\ClubPointMath;
 use DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -268,13 +269,13 @@ class OrderController extends Controller
 
         // generate array of shops cart items
         $shops_cart_items = array();
-        $club_points = 0;
+        $club_points = ClubPointMath::normalize(0);
 
         foreach ($cartItems as $cartItem) {
             $cart_ids = array();
             $product = $cartItem->variation->product;
             if (isset($shops_cart_items[$product->shop_id])) {
-                $cart_ids = $shops_cart_items[$product->shop_id];
+                    $cart_ids = $shops_cart_items[$product->shop_id];
             }
             array_push($cart_ids, $cartItem->id);
 
@@ -282,7 +283,10 @@ class OrderController extends Controller
 
             if (get_setting('club_point') == 1) {
                 if ($product->earn_point != null) {
-                    $club_points += $cartItem->product->earn_point * $cartItem->quantity;
+                    $club_points = ClubPointMath::add(
+                        $club_points,
+                        ClubPointMath::multiply($cartItem->product->earn_point, $cartItem->quantity)
+                    );
                 }
             }
         }

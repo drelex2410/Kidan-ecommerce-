@@ -22,6 +22,32 @@ class PaymentCallbackService
     {
         $payment = $this->resolveSessionPayment();
 
+        $this->markSuccessForPayment($payment, $gateway, $details);
+        $redirect = $this->redirectUrlFor($payment, 'success', $gateway);
+        $this->clearSession();
+
+        return redirect($redirect);
+    }
+
+    public function markFailed(string $gateway, mixed $details = null, string $status = 'failed'): RedirectResponse
+    {
+        $payment = $this->resolveSessionPayment(false);
+
+        if ($payment) {
+            $this->markFailureForPayment($payment, $gateway, $details, $status);
+        }
+
+        $redirect = $payment
+            ? $this->redirectUrlFor($payment, 'failed', $gateway)
+            : url('/') . '?' . http_build_query(['payment' => 'failed', 'payment_method' => $gateway]);
+
+        $this->clearSession();
+
+        return redirect($redirect);
+    }
+
+    public function markSuccessForPayment(Payment $payment, string $gateway, mixed $details = null): void
+    {
         DB::transaction(function () use ($payment, $gateway, $details) {
             $payment->refresh();
 
@@ -43,38 +69,26 @@ class PaymentCallbackService
                 'completed_at' => now(),
             ]);
         });
-
-        $redirect = $this->buildRedirectUrl($payment, 'success', $gateway);
-        $this->clearSession();
-
-        return redirect($redirect);
     }
 
-    public function markFailed(string $gateway, mixed $details = null, string $status = 'failed'): RedirectResponse
+    public function markFailureForPayment(Payment $payment, string $gateway, mixed $details = null, string $status = 'failed'): void
     {
-        $payment = $this->resolveSessionPayment(false);
+        DB::transaction(function () use ($payment, $gateway, $details, $status) {
+            $payment->refresh();
+            $this->recordTransaction($payment, $gateway, $status, $details, $status);
 
-        if ($payment) {
-            DB::transaction(function () use ($payment, $gateway, $details, $status) {
-                $payment->refresh();
-                $this->recordTransaction($payment, $gateway, $status, $details, $status);
+            if ($payment->status !== 'paid') {
+                $payment->update([
+                    'status' => $status,
+                    'failed_at' => now(),
+                ]);
+            }
+        });
+    }
 
-                if ($payment->status !== 'paid') {
-                    $payment->update([
-                        'status' => $status,
-                        'failed_at' => now(),
-                    ]);
-                }
-            });
-        }
-
-        $redirect = $payment
-            ? $this->buildRedirectUrl($payment, 'failed', $gateway)
-            : url('/') . '?' . http_build_query(['payment' => 'failed', 'payment_method' => $gateway]);
-
-        $this->clearSession();
-
-        return redirect($redirect);
+    public function redirectUrlFor(Payment $payment, string $status, string $gateway): string
+    {
+        return $this->buildRedirectUrl($payment, $status, $gateway);
     }
 
     public function markOfflinePending(Payment $payment, ?string $transactionId = null, ?UploadedFile $receipt = null): array

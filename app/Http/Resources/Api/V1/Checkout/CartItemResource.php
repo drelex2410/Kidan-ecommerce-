@@ -18,7 +18,7 @@ class CartItemResource extends JsonResource
             'cart_id' => (int) $this->id,
             'product_id' => (int) $this->product_id,
             'shop_id' => (int) $this->product->shop_id,
-            'earn_point' => (float) $this->product->earn_point,
+            'earn_point' => round((float) $this->product->earn_point, 6),
             'variation_id' => (int) $this->product_variation_id,
             'name' => $this->product->name,
             'combinations' => filter_variation_combinations($this->variation->combinations),

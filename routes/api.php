@@ -44,6 +44,7 @@ use App\Http\Controllers\Api\V1\Benefits\ClubPointController as V1ClubPointContr
 use App\Http\Controllers\Api\V1\Benefits\RefundController as V1RefundController;
 use App\Http\Controllers\Api\V1\Benefits\WalletController as V1WalletController;
 use App\Http\Controllers\Api\V1\Payments\PaymentInitializationController as V1PaymentInitializationController;
+use App\Http\Controllers\Payment\AlatPayWebhookController;
 use App\Http\Controllers\Api\V1\Shops\ShopController as V1ShopController;
 use App\Http\Controllers\Api\V1\Shops\ShopRegistrationController as V1ShopRegistrationController;
 use App\Http\Controllers\Api\V1\User\UserInfoController as V1UserInfoController;
@@ -77,6 +78,9 @@ Route::group(['prefix' => 'v1', 'as' => 'api.'], function () {
 
     Route::group(['prefix' => 'payment'], function () {
         Route::any('/{gateway}/pay', V1PaymentInitializationController::class);
+        Route::post('/alatpay/webhook', AlatPayWebhookController::class)
+            ->middleware('throttle:60,1')
+            ->name('alatpay.webhook');
     });
 
     Route::group(['prefix' => 'auth'], function () {

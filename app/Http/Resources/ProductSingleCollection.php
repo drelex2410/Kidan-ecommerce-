@@ -64,7 +64,7 @@ class ProductSingleCollection extends JsonResource
                 'slug' => optional($this->shop)->slug,
                 'isVarified' => optional($this->shop)->verification_status == 1 ? true : false,
             ],
-            'earn_point' => (float) $this->earn_point,
+            'earn_point' => round((float) $this->earn_point, 6),
             'is_digital' => $this->digital == 1 ? true : false,
         ];
     }

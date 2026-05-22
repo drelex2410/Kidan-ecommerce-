@@ -394,6 +394,192 @@
             </div>
         </div>
 
+        {{-- ALATPay --}}
+        <div class="col-md-6">
+            <div class="card border-primary shadow-sm">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <img src="{{ static_asset('assets/img/cards/alatpay.svg') }}" alt="ALATPay" class="mr-2" style="height: 24px;">
+                        <h5 class="mb-0 h6">{{ translate('ALATPay') }}</h5>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="badge badge-{{ ($alatpaySummary['gateway_status'] ?? 'incomplete') === 'ready' ? 'success' : 'warning' }} mr-2">
+                            {{ strtoupper($alatpaySummary['gateway_status'] ?? 'incomplete') }}
+                        </span>
+                        <span class="badge badge-info">
+                            {{ strtoupper($alatpaySummary['environment'] ?? 'sandbox') }}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form class="form-horizontal" action="{{ route('alatpay.settings.update') }}" method="POST">
+                        @csrf
+
+                        <div class="alert alert-soft-secondary mb-3">
+                            <div><strong>{{ translate('Gateway Status') }}:</strong> {{ translate(($alatpaySummary['configured'] ?? false) ? 'Configured' : 'Credentials incomplete') }}</div>
+                            <div><strong>{{ translate('Last Webhook Received') }}:</strong>
+                                {{ !empty($alatpaySummary['last_webhook_received_at']) ? \Carbon\Carbon::parse($alatpaySummary['last_webhook_received_at'])->toDayDateTimeString() : translate('Never') }}
+                            </div>
+                            <div><strong>{{ translate('Last Successful Transaction') }}:</strong>
+                                {{ !empty($alatpaySummary['last_successful_transaction_at']) ? \Carbon\Carbon::parse($alatpaySummary['last_successful_transaction_at'])->toDayDateTimeString() : translate('None yet') }}
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Activation') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <label class="aiz-switch aiz-switch-success mb-0">
+                                    <input type="checkbox" onchange="updateSettings(this, 'alatpay_payment')"
+                                        @if (get_setting('alatpay_payment') == 1) checked @endif>
+                                    <span class="slider round"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Environment') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <select class="form-control aiz-selectpicker" name="alatpay_env" data-live-search="false">
+                                    <option value="sandbox" @selected(($alatpaySettings['env'] ?? 'sandbox') === 'sandbox')>{{ translate('Sandbox') }}</option>
+                                    <option value="production" @selected(($alatpaySettings['env'] ?? '') === 'production')>{{ translate('Production') }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Merchant ID') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <input type="text" class="form-control" name="alatpay_merchant_id"
+                                    value="{{ old('alatpay_merchant_id', $alatpaySettings['merchant_id'] ?? '') }}"
+                                    placeholder="{{ translate('Merchant ID') }}" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Client ID') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <input type="text" class="form-control" name="alatpay_client_id"
+                                    value="{{ old('alatpay_client_id', $alatpaySettings['client_id'] ?? '') }}"
+                                    placeholder="{{ translate('Client ID') }}" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Client Secret') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <input type="text" class="form-control" name="alatpay_client_secret"
+                                    value="{{ old('alatpay_client_secret', '') }}"
+                                    placeholder="{{ ($alatpaySettings['has_client_secret'] ?? false) ? translate('Leave blank to keep existing secret') : translate('Paste client secret') }}">
+                                <small class="text-muted">{{ translate('Stored encrypted at rest.') }}</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Subscription Key') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <input type="text" class="form-control" name="alatpay_subscription_key"
+                                    value="{{ old('alatpay_subscription_key', '') }}"
+                                    placeholder="{{ ($alatpaySettings['has_subscription_key'] ?? false) ? translate('Leave blank to keep existing key') : translate('Paste subscription key') }}">
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Base URL') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <input type="url" class="form-control" name="alatpay_base_url"
+                                    value="{{ old('alatpay_base_url', $alatpaySettings['base_url'] ?? '') }}"
+                                    placeholder="https://wema-alatdev-apimgt.developer.azure-api.net" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Callback URL') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <input type="url" class="form-control" name="alatpay_callback_url"
+                                    value="{{ old('alatpay_callback_url', $alatpaySettings['callback_url'] ?? '') }}"
+                                    placeholder="{{ translate('Callback URL') }}" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Webhook Secret') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <input type="text" class="form-control" name="alatpay_webhook_secret"
+                                    value="{{ old('alatpay_webhook_secret', '') }}"
+                                    placeholder="{{ ($alatpaySettings['has_webhook_secret'] ?? false) ? translate('Leave blank to keep existing webhook secret') : translate('Webhook Secret') }}">
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Currency Support') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <input type="text" class="form-control" name="alatpay_supported_currencies"
+                                    value="{{ old('alatpay_supported_currencies', $alatpaySettings['supported_currencies'] ?? 'NGN') }}"
+                                    placeholder="NGN, USD">
+                                <small class="text-muted">{{ translate('Comma-separated ISO currency codes.') }}</small>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Charge Type') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <select class="form-control aiz-selectpicker" name="alatpay_charge_type" data-live-search="false">
+                                    <option value="percentage" @selected(($alatpaySettings['charge_type'] ?? 'percentage') === 'percentage')>{{ translate('Percentage') }}</option>
+                                    <option value="flat" @selected(($alatpaySettings['charge_type'] ?? '') === 'flat')>{{ translate('Flat') }}</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Flat Charge') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <input type="number" step="0.01" min="0" class="form-control" name="alatpay_charge_flat"
+                                    value="{{ old('alatpay_charge_flat', $alatpaySettings['charge_flat'] ?? 0) }}">
+                            </div>
+                        </div>
+
+                        <div class="form-group row">
+                            <div class="col-md-4">
+                                <label class="col-from-label">{{ translate('Charge Percent') }}</label>
+                            </div>
+                            <div class="col-md-8">
+                                <input type="number" step="0.01" min="0" max="100" class="form-control" name="alatpay_charge_percent"
+                                    value="{{ old('alatpay_charge_percent', $alatpaySettings['charge_percent'] ?? 0) }}">
+                            </div>
+                        </div>
+
+                        <div class="form-group mb-0 text-right">
+                            <button type="submit" class="btn btn-sm btn-primary">{{ translate('Save') }}</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
         {{-- Authorize Net --}}
         <div class="col-md-6">
             <div class="card">

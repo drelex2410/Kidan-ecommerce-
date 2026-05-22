@@ -7,17 +7,19 @@ use App\Models\CommissionHistory;
 use Illuminate\Http\Request;
 use App\Models\Order;
 use App\Models\OrderUpdate;
+use App\Models\Payment;
 use App\Models\RefundRequest;
 use App\Models\RefundRequestItem;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Services\Payments\AlatPay\AlatPayService;
 use Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class RefundRequestController extends Controller
 {
-    public function __construct()
+    public function __construct(private readonly AlatPayService $alatPayService)
     {
         // $this->middleware(['permission:show_commission_log'])->only('commission_history');
     }
@@ -155,7 +157,7 @@ class RefundRequestController extends Controller
             'refund_request_id' => ['required', 'integer', 'exists:refund_requests,id'],
             'status' => ['required', Rule::in(RefundRequest::WORKFLOW_STATUSES)],
             'amount' => ['nullable', 'numeric', 'min:0'],
-            'payment_type' => ['nullable', Rule::in(['manual', 'wallet'])],
+            'payment_type' => ['nullable', Rule::in(['manual', 'wallet', 'alatpay'])],
             'admin_notes' => ['nullable', 'string'],
             'approved_quantities' => ['nullable', 'array'],
             'approved_quantities.*' => ['nullable', 'integer', 'min:0'],
@@ -414,6 +416,10 @@ class RefundRequestController extends Controller
             $wallet->details = 'Refund for Order '.optional($order?->combined_order)->code;
             $wallet->save();
         }
+
+        if ($paymentType === 'alatpay') {
+            $this->processAlatPayRefund($refundRequest, $amount);
+        }
     }
 
     private function syncOrderRefundSummary(?Order $order): void
@@ -499,5 +505,48 @@ class RefundRequestController extends Controller
         }
 
         return $quantities;
+    }
+
+    private function processAlatPayRefund(RefundRequest $refundRequest, float $amount): void
+    {
+        $order = $refundRequest->order;
+        $combinedOrderId = $order?->combined_order?->id ?? $order?->combined_order_id;
+
+        $payment = Payment::query()
+            ->where('gateway', 'alatpay')
+            ->where('status', 'paid')
+            ->when($combinedOrderId, fn ($query) => $query->where('combined_order_id', $combinedOrderId))
+            ->latest('id')
+            ->first();
+
+        if (!$payment) {
+            throw ValidationException::withMessages([
+                'payment_type' => translate('No successful ALATPay payment was found for this order.'),
+            ]);
+        }
+
+        $transaction = $payment->alatPayTransactions()
+            ->where('status', 'successful')
+            ->latest('id')
+            ->first();
+
+        if (!$transaction) {
+            throw ValidationException::withMessages([
+                'payment_type' => translate('The ALATPay transaction history for this order is incomplete.'),
+            ]);
+        }
+
+        $this->alatPayService->requestRefund(
+            $transaction,
+            $amount,
+            $refundRequest->refund_note,
+            $refundRequest->id,
+            auth()->id(),
+            [
+                'refund_request_id' => $refundRequest->id,
+                'reviewed_by' => auth()->id(),
+                'order_id' => $refundRequest->order_id,
+            ]
+        );
     }
 }

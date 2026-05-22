@@ -22,7 +22,9 @@ class ProductDetailResource extends JsonResource
             ],
             'photos' => collect(explode(',', (string) $this->photos))
                 ->filter()
-                ->map(fn ($photo) => api_asset(trim($photo)))
+                ->map(fn ($photo) => trim($photo))
+                ->unique()
+                ->map(fn ($photo) => api_asset($photo))
                 ->values()
                 ->all(),
             'thumbnail_image' => $this->thumbnail_img ? api_asset($this->thumbnail_img) : null,
@@ -35,10 +37,10 @@ class ProductDetailResource extends JsonResource
             'unit' => $this->getTranslation('unit'),
             'discount' => $this->discount,
             'discount_type' => $this->discount_type,
-            'base_price' => (double) product_base_price($this->resource),
-            'highest_price' => (double) product_highest_price($this->resource),
-            'base_discounted_price' => (double) product_discounted_base_price($this->resource),
-            'highest_discounted_price' => (double) product_discounted_highest_price($this->resource),
+            'base_price' => (double) product_base_price($this->resource, false),
+            'highest_price' => (double) product_highest_price($this->resource, false),
+            'base_discounted_price' => (double) product_discounted_base_price($this->resource, false),
+            'highest_discounted_price' => (double) product_discounted_highest_price($this->resource, false),
             'standard_delivery_time' => (int) $this->standard_delivery_time,
             'express_delivery_time' => (int) $this->express_delivery_time,
             'is_variant' => (int) $this->is_variant,
@@ -64,7 +66,7 @@ class ProductDetailResource extends JsonResource
                 'slug' => optional($this->shop)->slug,
                 'isVarified' => (bool) (optional($this->shop)->verification_status == 1),
             ],
-            'earn_point' => (float) $this->earn_point,
+            'earn_point' => round((float) $this->earn_point, 6),
             'is_digital' => (bool) ($this->digital == 1),
         ];
     }

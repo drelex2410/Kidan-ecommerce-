@@ -255,6 +255,14 @@
             >
               Change
             </button>
+            <button
+              v-if="isAuthenticated && selectedDeliveryType === 'home_delivery' && selectedShippingAddressPreview.id"
+              type="button"
+              class="checkout-inline-link"
+              @click="editSelectedAddress"
+            >
+              Edit Selected
+            </button>
           </template>
         </CheckoutSectionCard>
 
@@ -323,20 +331,33 @@
         <CheckoutSectionCard :title="selectedDeliveryType === 'pickup' ? 'Pickup Option' : 'Shipping Option'">
           <div
             v-if="selectedDeliveryType === 'pickup'"
-            class="checkout-pickup-grid"
+            class="checkout-pickup-selector"
           >
-            <button
-              v-for="pickupPoint in getPickupPoints"
-              :key="pickupPoint.id"
-              type="button"
-              class="checkout-pickup-card"
-              :class="{ 'is-selected': selectedPickupPoint === pickupPoint.id }"
-              @click="selectedPickupPoint = pickupPoint.id"
+            <div class="checkout-form-field checkout-form-field--full">
+              <label>Select Pickup Point</label>
+              <div class="checkout-select-wrap">
+                <select v-model="selectedPickupPoint" class="checkout-input">
+                  <option :value="null">Choose a pickup point</option>
+                  <option
+                    v-for="pickupPoint in getPickupPoints"
+                    :key="pickupPoint.id"
+                    :value="pickupPoint.id"
+                  >
+                    {{ pickupPoint.name }}
+                  </option>
+                </select>
+                <i class="las la-angle-down"></i>
+              </div>
+            </div>
+
+            <div
+              v-if="selectedPickupPointObject"
+              class="checkout-pickup-card is-selected"
             >
-              <strong>{{ pickupPoint.name }}</strong>
-              <span>{{ pickupPoint.location }}</span>
-              <span>{{ pickupPoint.phone }}</span>
-            </button>
+              <strong>{{ selectedPickupPointObject.name }}</strong>
+              <span>{{ selectedPickupPointObject.location }}</span>
+              <span>{{ selectedPickupPointObject.phone }}</span>
+            </div>
           </div>
           <div
             v-else-if="selectedDeliveryOption !== ''"
@@ -352,7 +373,7 @@
                 <strong>Est. Delivery {{ standardDeliveryLabel }}</strong>
                 <span>Standard Delivery</span>
               </div>
-              <strong>{{ format_price(standardDeliveryCost, false) }}</strong>
+              <strong>{{ format_price(standardDeliveryTotal, false) }}</strong>
             </button>
             <button
               type="button"
@@ -364,7 +385,7 @@
                 <strong>Est. Delivery {{ expressDeliveryLabel }}</strong>
                 <span>Express Delivery</span>
               </div>
-              <strong>{{ format_price(expressDeliveryCost, false) }}</strong>
+              <strong>{{ format_price(expressDeliveryTotal, false) }}</strong>
             </button>
           </div>
           <div
@@ -590,6 +611,7 @@
         :subtotal="getCartPrice"
         :discount="getTotalCouponDiscount"
         :points="getCartClubPoints"
+        :tax="getCartTax"
         :shipping-label="summaryShippingLabel"
         :total="totalPrice"
         :cart-items="getCartProducts"
@@ -639,6 +661,8 @@ export default {
       selectedDeliveryType: "home_delivery",
       standardDeliveryCost: 0,
       expressDeliveryCost: 0,
+      standardDeliveryTotal: 0,
+      expressDeliveryTotal: 0,
       addDialogShow: false,
       addressSelectedForEdit: {},
       rechargeDialogShow: false,
@@ -826,7 +850,7 @@ export default {
       }
 
       const label = this.selectedDeliveryOption === "express" ? "Express" : "Standard";
-      return `${label} ${this.format_price(this.selectedShippingCost, false)}`;
+      return `${label} ${this.format_price(this.selectedShippingTotal, false)}`;
     },
     selectedShippingCost() {
       if (this.selectedDeliveryType !== "home_delivery") {
@@ -837,12 +861,21 @@ export default {
         ? this.expressDeliveryCost
         : this.standardDeliveryCost;
     },
+    selectedShippingTotal() {
+      if (this.selectedDeliveryType !== "home_delivery") {
+        return 0;
+      }
+
+      return this.selectedDeliveryOption === "express"
+        ? this.expressDeliveryTotal
+        : this.standardDeliveryTotal;
+    },
     totalPrice() {
+      const baseTotal = this.getCartPrice + this.getCartTax - this.getTotalCouponDiscount;
+
       return this.selectedDeliveryType == "home_delivery"
-        ? this.getCartPrice -
-            this.getTotalCouponDiscount +
-            this.selectedShippingCost * this.getCartShops.length
-        : this.getCartPrice - this.getTotalCouponDiscount;
+        ? baseTotal + this.selectedShippingTotal
+        : baseTotal;
     },
     standardDeliveryLabel() {
       return this.getStandardTime ? `within ${this.getStandardTime} day(s)` : "within standard window";
@@ -856,7 +889,7 @@ export default {
       }
 
       const speed = this.selectedDeliveryOption === "express" ? "Express" : "Standard";
-      return `${speed} - ${this.format_price(this.selectedShippingCost, false)}`;
+      return `${speed} - ${this.format_price(this.selectedShippingTotal, false)}`;
     },
     selectedPickupPointObject() {
       return (
@@ -887,24 +920,29 @@ export default {
     ...mapActions("address", ["fetchAddresses"]),
     ...mapActions("auth", ["rechargeWallet", "deductFromWallet"]),
     async checkForPickUp(type) {
-      this.getCartProducts.map((product) => {
-        if (product.for_pickup == 0) {
-          this.selectedPickupPoint = null;
-          this.for_pickup = false;
-          this.snack({
-            message: `One or more items in the cart are not available for pickup`,
-            color: "red",
-          });
-          return;
-        } else {
-          this.for_pickup = true;
-        }
-      });
+      const pickupEligible = this.selectedCartItems.every(
+        (product) => Number(product.for_pickup) === 1
+      );
+
+      if (!pickupEligible) {
+        this.selectedPickupPoint = null;
+        this.for_pickup = false;
+        this.snack({
+          message: `One or more items in the cart are not available for pickup`,
+          color: "red",
+        });
+        return;
+      }
+
+      this.for_pickup = true;
       this.selectedDeliveryType = type;
       this.selectedDeliveryOption = "";
     },
     ChooseDeleviryType(deliveryType) {
       this.selectedDeliveryType = deliveryType;
+      if (deliveryType !== "pickup") {
+        this.selectedPickupPoint = null;
+      }
       if (deliveryType === "home_delivery") {
         if (this.isAuthenticated && this.selectedShippingAddressId) {
           this.getShippingCost(this.selectedShippingAddressId);
@@ -916,6 +954,27 @@ export default {
     addressDialogClosed() {
       this.addressSelectedForEdit = {};
       this.addDialogShow = false;
+
+      if (this.isAuthenticated) {
+        const candidateAddressId =
+          this.selectedShippingAddressId ||
+          this.getDefaultShippingAddress?.id ||
+          this.getAddresses?.[0]?.id ||
+          null;
+
+        if (candidateAddressId) {
+          this.selectedShippingAddressId = candidateAddressId;
+          this.shippingAddressSelected(candidateAddressId);
+        }
+      }
+    },
+    editSelectedAddress() {
+      if (!this.selectedShippingAddressPreview?.id) {
+        return;
+      }
+
+      this.addressSelectedForEdit = { ...this.selectedShippingAddressPreview };
+      this.addDialogShow = true;
     },
     rechargeDialogClosed() {
       this.rechargeDialogShow = false;
@@ -945,6 +1004,8 @@ export default {
           this.selectedDeliveryOption = "";
           this.standardDeliveryCost = 0;
           this.expressDeliveryCost = 0;
+          this.standardDeliveryTotal = 0;
+          this.expressDeliveryTotal = 0;
           return;
         }
 
@@ -954,6 +1015,8 @@ export default {
           this.selectedDeliveryOption = "";
           this.standardDeliveryCost = 0;
           this.expressDeliveryCost = 0;
+          this.standardDeliveryTotal = 0;
+          this.expressDeliveryTotal = 0;
           return;
         }
 
@@ -966,6 +1029,13 @@ export default {
       this.selectedDeliveryOption = res.data.success ? "standard" : "";
       this.standardDeliveryCost = parseFloat(res.data.standard_delivery_cost || 0);
       this.expressDeliveryCost = parseFloat(res.data.express_delivery_cost || 0);
+      const fallbackShopCount = this.getCartShops.length || this.guestShopCount;
+      this.standardDeliveryTotal = parseFloat(
+        res.data.totals?.shipping_total_standard ?? this.standardDeliveryCost * fallbackShopCount ?? 0
+      );
+      this.expressDeliveryTotal = parseFloat(
+        res.data.totals?.shipping_total_express ?? this.expressDeliveryCost * fallbackShopCount ?? 0
+      );
     },
     async fetchCountries() {
       if (this.countriesLoaded) return;
@@ -1500,6 +1570,11 @@ export default {
   gap: 12px;
 }
 
+.checkout-pickup-selector {
+  display: grid;
+  gap: 16px;
+}
+
 .checkout-option-card,
 .checkout-pickup-card,
 .checkout-payment-card {
@@ -1625,6 +1700,10 @@ export default {
   font-weight: 700;
   padding: 0;
   cursor: pointer;
+}
+
+.checkout-inline-link + .checkout-inline-link {
+  margin-left: 14px;
 }
 
 .checkout-shipping-summary {

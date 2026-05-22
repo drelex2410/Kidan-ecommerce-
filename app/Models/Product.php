@@ -16,6 +16,7 @@ class Product extends Model
         'published' => 'boolean',
         'approved' => 'boolean',
         'today_deal' => 'boolean',
+        'earn_point' => 'decimal:6',
     ];
 
     public function getTranslation($field = '', $lang = false)

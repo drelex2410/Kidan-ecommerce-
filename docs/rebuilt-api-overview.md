@@ -97,6 +97,11 @@
 - `POST /api/v1/payment/{gateway}/pay`
 - `POST /payment/{gateway}/pay`
 - provider callback and return routes remain under `/payment/*`
+- ALATPay-specific routes:
+  - `GET /payment/alatpay/checkout/{reference}`
+  - `GET /payment/alatpay/status/{reference}`
+  - `POST /payment/alatpay/verify/{reference}`
+  - `POST /api/v1/payment/alatpay/webhook`
 
 ## Auth Expectations
 
@@ -110,3 +115,4 @@
 - online payment handoff remains browser-form based
 - callbacks reconcile through persisted `payments` and `payment_transactions`
 - duplicate payment success callbacks are idempotent
+- ALATPay uses a queued webhook + reconciliation flow and does not trust browser success states

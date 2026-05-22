@@ -158,7 +158,7 @@ export default {
             localStorage.setItem("cookieStatus", status);
         },
         setRTL(state, status) {
-            state.cookieStatus = status;
+            state.isRTL = status;
             localStorage.setItem("isRTL", status);
         },
     },

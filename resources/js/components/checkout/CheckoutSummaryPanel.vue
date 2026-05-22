@@ -16,6 +16,10 @@
           <strong>{{ points > 0 ? points : "-" }}</strong>
         </div>
         <div class="checkout-summary__row">
+          <span>VAT</span>
+          <strong>{{ tax > 0 ? format_price(tax, false) : "-" }}</strong>
+        </div>
+        <div class="checkout-summary__row">
           <span>Shipping</span>
           <strong>{{ shippingLabel }}</strong>
         </div>
@@ -139,6 +143,10 @@ export default {
       default: 0,
     },
     points: {
+      type: Number,
+      default: 0,
+    },
+    tax: {
       type: Number,
       default: 0,
     },

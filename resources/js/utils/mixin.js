@@ -33,11 +33,36 @@ export default {
         },
         format_price: (amount = 0) => {
             amount = parseFloat(amount);
-            amount = typeof amount == "number" ? amount : 0.0;
+            amount = Number.isFinite(amount) ? amount : 0.0;
 
             let currency_setting =
                 store.getters["app/generalSettings"].currency;
-            let formated_price = amount.toFixed(
+            const selectedRate = parseFloat(
+                currency_setting.selected_currency_exchange_rate ?? 1
+            );
+            const defaultRate = parseFloat(
+                currency_setting.default_currency_exchange_rate ?? 1
+            );
+            const shouldConvert =
+                Number.isFinite(selectedRate) &&
+                selectedRate > 0 &&
+                Number.isFinite(defaultRate) &&
+                defaultRate > 0 &&
+                currency_setting.selected_currency_code &&
+                currency_setting.default_currency_code &&
+                currency_setting.selected_currency_code !==
+                    currency_setting.default_currency_code;
+
+            const displayAmount = shouldConvert
+                ? (amount / defaultRate) * selectedRate
+                : amount;
+
+            const currencySymbol =
+                currency_setting.selected_currency_symbol ||
+                currency_setting.code ||
+                "";
+
+            let formated_price = displayAmount.toFixed(
                 currency_setting.no_of_decimals
             );
 
@@ -64,20 +89,26 @@ export default {
 
             switch (currency_setting.symbol_format) {
                 case "2":
-                    formated_price = formated_price + currency_setting.code;
+                    formated_price = formated_price + currencySymbol;
                     break;
                 case "3":
-                    formated_price =
-                        currency_setting.code + " " + formated_price;
+                    formated_price = currencySymbol + " " + formated_price;
                     break;
                 case "4":
-                    formated_price =
-                        formated_price + " " + currency_setting.code;
+                    formated_price = formated_price + " " + currencySymbol;
                     break;
                 default:
-                    formated_price = currency_setting.code + formated_price;
+                    formated_price = currencySymbol + formated_price;
             }
             return formated_price;
+        },
+        format_points: (points = 0, maxDecimals = 6) => {
+            const value = parseFloat(points);
+            if (!Number.isFinite(value)) {
+                return "0";
+            }
+
+            return value.toFixed(maxDecimals).replace(/\.?0+$/, "");
         },
         is_addon_activated: (key = "") => {
             let addon = store.getters["app/addons"].find(

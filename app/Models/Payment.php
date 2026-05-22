@@ -30,4 +30,9 @@ class Payment extends Model
     {
         return $this->hasMany(PaymentTransaction::class);
     }
+
+    public function alatPayTransactions(): HasMany
+    {
+        return $this->hasMany(AlatPayTransaction::class);
+    }
 }

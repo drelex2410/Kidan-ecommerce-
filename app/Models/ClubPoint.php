@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Model;
 
 class ClubPoint extends Model
 {
+    protected $casts = [
+        'points' => 'decimal:6',
+    ];
+
     public function user(){
     	return $this->belongsTo(User::class);
     }

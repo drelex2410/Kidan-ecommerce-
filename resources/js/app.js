@@ -54,6 +54,12 @@ const bootstrapDefaults = {
         },
         currency: {
             code: "$",
+            default_currency_code: "USD",
+            default_currency_symbol: "$",
+            default_currency_exchange_rate: 1,
+            selected_currency_code: "USD",
+            selected_currency_symbol: "$",
+            selected_currency_exchange_rate: 1,
             decimal_separator: "1",
             symbol_format: "1",
             no_of_decimals: "2",

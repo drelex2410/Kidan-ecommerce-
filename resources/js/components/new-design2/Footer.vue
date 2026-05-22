@@ -22,7 +22,7 @@
           </ul>
         </v-col>
         <v-col lg="3">
-          <h4 class="column-title">{{ $t("terms_policies") || "Terms & Policies" }}</h4>
+          <h4 class="column-title">Terms &amp; Policies</h4>
           <ul class="footer-links">
             <li v-for="(link, label, i) in data.footer_menu" :key="i">
               <dynamic-link :to="link" class="footer-link">{{ label }}</dynamic-link>
@@ -32,7 +32,7 @@
         <v-col lg="3">
           <div class="right-section">
             <v-btn class="find-store-btn" href="#" target="_blank">
-              {{ $t("find_our_store") || "FIND OUR STORE" }}
+                {{ $t("find_our_store") || "FIND OUR STORE" }}
             </v-btn>
             <div class="signup-box">
               <h4 class="signup-title">
@@ -92,7 +92,7 @@
             </v-expansion-panel>
             <v-expansion-panel>
               <v-expansion-panel-title>
-                <h4 class="column-title mb-0">{{ $t("terms_policies") || "Terms & Policies" }}</h4>
+                <h4 class="column-title mb-0">Terms &amp; Policies</h4>
               </v-expansion-panel-title>
               <v-expansion-panel-text>
                 <ul class="footer-links">
@@ -187,9 +187,13 @@ export default {
 .kidan-footer {
   background-color: #FFFBF3;
   color: #000000;
-  font-family: 'Helvetica Neue', Arial, sans-serif;
-  padding: 18px 0 26px;
+  font-family: 'Open Sans', sans-serif;
+  padding: 36px 0 26px;
   height: auto;
+  margin-top: 28px;
+  position: relative;
+  z-index: 2;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 .main-footer {
   width: 97%;
@@ -207,6 +211,7 @@ export default {
 }
 .footer-content {
   margin-bottom: 28px;
+  align-items: flex-start;
 }
 .column-title {
   font-size: 14px;
@@ -237,6 +242,7 @@ export default {
   gap: 18px;
   align-items: stretch;
   width: 100%;
+  justify-content: flex-start;
 }
 .find-store-btn {
   background-color: #8b0000 !important;
@@ -258,6 +264,10 @@ export default {
   padding: 30px 20px;
   background: #FFFBF3;
   width: 100%;
+  min-height: 124px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .signup-box.mobile {
   margin-bottom: 16px;
@@ -369,6 +379,7 @@ export default {
   .kidan-footer {
     padding: 30px 0 20px;
     height: auto;
+    margin-top: 20px;
   }
   .main-footer {
     width: 97%;

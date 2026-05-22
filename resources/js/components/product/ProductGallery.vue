@@ -55,8 +55,8 @@
                     :modules="modules"
                     class="mySwiper2 border-thin"
                 >
-                    <swiper-slide v-for="(photo, i) in galleryImgaes" :key="i">
-                        <ProductImageZoom :imageSrc="selectedVariation.image ? selectedVariation.image: photo"/>
+                    <swiper-slide v-for="(photo, i) in resolvedGalleryImages" :key="i">
+                        <ProductImageZoom :imageSrc="photo"/>
                     </swiper-slide>
                 </swiper>
             
@@ -71,7 +71,7 @@
                 :modules="modules"
                 class="mySwiper"
             >
-                <swiper-slide v-for="(photo, i) in galleryImgaes" :key="i">
+                <swiper-slide v-for="(photo, i) in resolvedGalleryImages" :key="i">
                     <img :src="photo" class="border-thin" />
                 </swiper-slide>
 
@@ -112,6 +112,14 @@ export default {
                 "--gallery-desktop-width": width,
                 "--gallery-desktop-height": height,
             };
+        },
+        resolvedGalleryImages() {
+            const galleryImages = Array.isArray(this.galleryImgaes) ? this.galleryImgaes.filter(Boolean) : [];
+            const selectedImage = this.selectedVariation?.image;
+
+            return [selectedImage, ...galleryImages]
+                .filter(Boolean)
+                .filter((image, index, images) => images.indexOf(image) === index);
         },
     },
     setup() {

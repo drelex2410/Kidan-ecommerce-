@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Currency;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Cache;
 
 class CurrencyController extends Controller
 {
@@ -17,9 +19,34 @@ class CurrencyController extends Controller
 
     public function changeCurrency(Request $request)
     {
-        $request->session()->put('currency_code', $request->currency_code);
-        $currency = Currency::where('code', $request->currency_code)->first();
-        flash(translate('Currency changed to ') . $currency->name)->success();
+        $validated = $request->validate([
+            'currency_code' => [
+                'required',
+                'string',
+                Rule::exists('currencies', 'code')->where(fn ($query) => $query->where('status', 1)),
+            ],
+        ]);
+
+        $currency = Currency::where('code', $validated['currency_code'])->firstOrFail();
+        $request->session()->put('currency_code', $validated['currency_code']);
+        $request->session()->put('currency_exchange_rate', $currency->exchange_rate);
+
+        $message = translate('Currency changed to ') . $currency->name;
+
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => $message,
+                'data' => [
+                    'code' => $currency->code,
+                    'symbol' => $currency->symbol,
+                    'exchange_rate' => (float) $currency->exchange_rate,
+                ],
+            ]);
+        }
+
+        flash($message)->success();
+        return back();
     }
 
     public function index(Request $request)
@@ -39,12 +66,14 @@ class CurrencyController extends Controller
     public function updateYourCurrency(Request $request)
     {
         $currency = Currency::findOrFail($request->id);
+        $originalCode = $currency->code;
         $currency->name = $request->name;
         $currency->symbol = $request->symbol;
         $currency->code = $request->code;
         $currency->exchange_rate = $request->exchange_rate;
         $currency->status = $currency->status;
         if ($currency->save()) {
+            $this->clearCurrencyCaches($originalCode, $currency->code);
             flash(translate('Currency updated successfully'))->success();
             return redirect()->route('currency.index');
         } else {
@@ -73,6 +102,7 @@ class CurrencyController extends Controller
         $currency->exchange_rate = $request->exchange_rate;
         $currency->status = '0';
         if ($currency->save()) {
+            $this->clearCurrencyCaches(null, $currency->code);
             flash(translate('Currency updated successfully'))->success();
             return redirect()->route('currency.index');
         } else {
@@ -86,8 +116,19 @@ class CurrencyController extends Controller
         $currency = Currency::findOrFail($request->id);
         $currency->status = $request->status;
         if ($currency->save()) {
+            $this->clearCurrencyCaches($currency->code, $currency->code);
             return 1;
         }
         return 0;
+    }
+
+    private function clearCurrencyCaches(?string $originalCode = null, ?string $newCode = null): void
+    {
+        Cache::forget('bootstrap.currencies');
+
+        foreach (array_filter([$originalCode, $newCode]) as $currencyCode) {
+            Cache::forget("selected_currency_rate_{$currencyCode}");
+            Cache::forget("selected_currency_symbol_{$currencyCode}");
+        }
     }
 }

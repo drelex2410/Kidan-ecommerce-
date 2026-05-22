@@ -67,6 +67,11 @@
                             <option value="wallet" @selected(old('payment_type', $refund_request->payment_type) === 'wallet')>
                                 {{ translate('Pay in Wallet') }}
                             </option>
+                            @if (($refund_request->order->payment_type ?? null) === 'alatpay')
+                                <option value="alatpay" @selected(old('payment_type', $refund_request->payment_type) === 'alatpay')>
+                                    {{ translate('Refund via ALATPay') }}
+                                </option>
+                            @endif
                         </select>
                     </div>
                     <div class="form-group mb-0">

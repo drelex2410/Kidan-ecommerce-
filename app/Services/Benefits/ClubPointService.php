@@ -5,6 +5,7 @@ namespace App\Services\Benefits;
 use App\Models\ClubPoint;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Support\ClubPointMath;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -50,20 +51,26 @@ class ClubPointService
             return 1;
         }
 
-        $rate = max(1, (int) get_setting('club_point_convert_rate', 1));
-        $walletAmount = (float) $clubPoint->points / $rate;
+        $rate = ClubPointMath::normalize(get_setting('club_point_convert_rate', 1));
+        if (ClubPointMath::compare($rate, '0') === 0) {
+            $rate = ClubPointMath::normalize(1);
+        }
+        $walletAmount = ClubPointMath::divide($clubPoint->points, $rate);
 
         DB::transaction(function () use ($user, $clubPoint, $walletAmount) {
             $clubPoint->convert_status = 1;
             $clubPoint->save();
 
-            $user->balance = (float) $user->balance + $walletAmount;
+            $user->balance = (float) $user->balance + ClubPointMath::toFloat($walletAmount);
+            $user->club_points = ClubPointMath::clampToZero(
+                ClubPointMath::subtract($user->club_points, $clubPoint->points)
+            );
             $user->save();
 
             if (Schema::hasTable('wallets')) {
                 Wallet::query()->create([
                     'user_id' => $user->id,
-                    'amount' => $walletAmount,
+                    'amount' => ClubPointMath::toFloat($walletAmount),
                     'payment_method' => 'Club Point Converted',
                     'payment_details' => 'Club Point Converted',
                     'details' => 'Club Point Converted',

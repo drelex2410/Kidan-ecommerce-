@@ -94,6 +94,7 @@ class BootstrapService
     {
         return Cache::remember('bootstrap.currencies', 300, static function () {
             return Currency::query()
+                ->where('status', 1)
                 ->get(['id', 'name', 'symbol', 'code', 'exchange_rate'])
                 ->map(static function (Currency $currency) {
                     return [
@@ -124,6 +125,10 @@ class BootstrapService
     private function generalSettings(Collection $settings): array
     {
         $defaultCurrency = Currency::find($this->setting($settings, 'system_default_currency'));
+        $selectedCurrency = Currency::query()
+            ->where('code', session('currency_code'))
+            ->where('status', 1)
+            ->first() ?? $defaultCurrency;
 
         return [
             'product_comparison' => $this->intSetting($settings, 'product_comparison'),
@@ -146,7 +151,13 @@ class BootstrapService
                 'twitter' => $this->intSetting($settings, 'twitter_login'),
             ],
             'currency' => [
-                'code' => $defaultCurrency?->symbol,
+                'code' => $selectedCurrency?->symbol,
+                'default_currency_code' => $defaultCurrency?->code,
+                'default_currency_symbol' => $defaultCurrency?->symbol,
+                'default_currency_exchange_rate' => (float) ($defaultCurrency?->exchange_rate ?? 1),
+                'selected_currency_code' => $selectedCurrency?->code,
+                'selected_currency_symbol' => $selectedCurrency?->symbol,
+                'selected_currency_exchange_rate' => (float) ($selectedCurrency?->exchange_rate ?? 1),
                 'decimal_separator' => $this->setting($settings, 'decimal_separator'),
                 'symbol_format' => $this->setting($settings, 'symbol_format'),
                 'no_of_decimals' => $this->setting($settings, 'no_of_decimals'),

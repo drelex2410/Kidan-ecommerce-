@@ -8,6 +8,7 @@ use App\Models\RefundPolicy;
 use App\Models\RefundRequest;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Schema;
 
 class RefundEligibilityService
 {
@@ -51,7 +52,7 @@ class RefundEligibilityService
             'quantity_already_requested' => $consumedQuantity,
             'max_requestable_quantity' => $remainingQuantity,
             'completed_at' => $completionAt?->timestamp,
-            'expires_at' => $this->expirationTimestamp($policy, $completionAt)?->timestamp,
+            'expires_at' => $policy ? $this->expirationTimestamp($policy, $completionAt)?->timestamp : null,
         ];
 
         if (! $product) {
@@ -160,6 +161,10 @@ class RefundEligibilityService
 
     private function consumedQuantitiesByOrderDetail(Order $order): array
     {
+        if (!Schema::hasTable('refund_requests') || !Schema::hasTable('refund_request_items')) {
+            return [];
+        }
+
         $requests = $order->relationLoaded('refundRequests')
             ? $order->refundRequests
             : $order->refundRequests()->with('refundRequestItems')->get();
@@ -187,6 +192,10 @@ class RefundEligibilityService
 
     private function countActiveRequests(Order $order): int
     {
+        if (!Schema::hasTable('refund_requests')) {
+            return 0;
+        }
+
         $requests = $order->relationLoaded('refundRequests')
             ? $order->refundRequests
             : $order->refundRequests()->get();

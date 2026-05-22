@@ -26,6 +26,7 @@ class RegistrationService
             'password' => Hash::make($payload['password']),
             'user_type' => 'customer',
             'banned' => false,
+            'club_points' => 10,
             'email_verified_at' => $this->authSettingsService->verificationEnabled() && $this->authSettingsService->verificationChannel() === 'email' ? null : now(),
             'phone_verified_at' => $this->authSettingsService->verificationEnabled() && $this->authSettingsService->verificationChannel() === 'phone' ? null : now(),
         ]);

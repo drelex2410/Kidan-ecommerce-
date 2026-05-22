@@ -2,7 +2,7 @@
 <template>
     <div class="pb-6">
         <v-container>
-            <h1 class="mb-7 mt-4">{{ $t('all_categories') }}</h1>
+            <h1 class="mb-7 mt-4">All Categories</h1>
             <v-row v-if="categories.length">
                 <v-col cols="12" md="6" v-for="(category, i) in categories" :key="i">
                     <div v-if="loading">

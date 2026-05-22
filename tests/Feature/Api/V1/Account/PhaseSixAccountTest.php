@@ -190,15 +190,18 @@ class PhaseSixAccountTest extends TestCase
         $response = $this->withToken($user->createToken('frontend-web')->plainTextToken)
             ->postJson('/api/v1/user/info/update', [
                 'name' => 'Updated User',
+                'date_of_birth' => '1994-07-15',
                 'password' => 'secret999',
                 'confirmPassword' => 'secret999',
             ]);
 
         $response->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('user.name', 'Updated User');
+            ->assertJsonPath('user.name', 'Updated User')
+            ->assertJsonPath('user.date_of_birth', '1994-07-15');
 
         $this->assertTrue(Hash::check('secret999', $user->fresh()->password));
+        $this->assertSame('1994-07-15', optional($user->fresh()->date_of_birth)->format('Y-m-d'));
     }
 
     public function test_profile_update_validation_failure_is_machine_readable(): void
@@ -383,6 +386,7 @@ class PhaseSixAccountTest extends TestCase
             $table->string('name');
             $table->string('email')->nullable()->unique();
             $table->string('phone')->nullable()->unique();
+            $table->date('date_of_birth')->nullable();
             $table->string('avatar')->nullable();
             $table->timestamp('email_verified_at')->nullable();
             $table->timestamp('phone_verified_at')->nullable();
@@ -390,7 +394,7 @@ class PhaseSixAccountTest extends TestCase
             $table->string('user_type')->default('customer');
             $table->boolean('banned')->default(false);
             $table->decimal('balance', 12, 2)->default(0);
-            $table->unsignedInteger('club_points')->default(0);
+            $table->decimal('club_points', 20, 6)->default(0);
             $table->rememberToken();
             $table->timestamps();
         });
@@ -500,7 +504,7 @@ class PhaseSixAccountTest extends TestCase
             $table->unsignedInteger('max_qty')->default(10);
             $table->string('unit')->nullable();
             $table->decimal('rating', 8, 2)->default(0);
-            $table->decimal('earn_point', 8, 2)->default(0);
+            $table->decimal('earn_point', 20, 6)->default(0);
             $table->boolean('digital')->default(false);
             $table->boolean('published')->default(true);
             $table->boolean('approved')->default(true);

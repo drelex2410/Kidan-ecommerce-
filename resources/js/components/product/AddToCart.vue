@@ -227,7 +227,7 @@
                     />
                   </g>
                 </svg>
-                <div class="fs-13 ms-1">{{ productDetails.earn_point }}</div>
+                <div class="fs-13 ms-1">{{ format_points(productDetails.earn_point) }}</div>
               </div>
             </v-col>
           </v-row>
@@ -356,7 +356,7 @@
                       />
                     </g>
                   </svg>
-                  <span class="fs-13 ms-1">{{ productDetails.earn_point }}</span>
+                  <span class="fs-13 ms-1">{{ format_points(productDetails.earn_point) }}</span>
                 </span>
               </span>
             </v-col>

@@ -58,7 +58,7 @@
         body,
         .v-application {
             font-family: 'Open Sans', sans-serif;
-            font-weight: 600;
+            font-weight: 400;
             line-height: 1.6;
             font-size: 14px;
             overflow: none;

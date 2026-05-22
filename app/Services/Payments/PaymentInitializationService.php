@@ -3,6 +3,7 @@
 namespace App\Services\Payments;
 
 use App\Http\Controllers\Payment\AuthorizenetPaymentController;
+use App\Http\Controllers\Payment\AlatPayController;
 use App\Http\Controllers\Payment\FlutterwavePaymentController;
 use App\Http\Controllers\Payment\IyzicoPaymentController;
 use App\Http\Controllers\Payment\MercadopagoPaymentController;
@@ -132,7 +133,7 @@ class PaymentInitializationService
                 'payment_method' => $paymentMethod,
                 'order_code' => $orderCode,
                 'amount' => round($amount, 2),
-                'currency' => optional(Currency::find(get_setting('system_default_currency')))->code,
+                'currency' => strtoupper((string) ($request->input('currency') ?: optional(Currency::find(get_setting('system_default_currency')))->code)),
                 'status' => $this->gatewayManager->isOffline($gateway) ? 'pending' : 'initiated',
                 'redirect_to' => $redirectTo,
                 'meta' => Arr::except($request->all(), ['card_number', 'cvv', 'receipt']),
@@ -210,6 +211,7 @@ class PaymentInitializationService
             'myfatoorah' => app(MyfatoorahPaymentController::class)->index($request),
             'phonepe' => app(PhonepePaymentController::class)->index(),
             'payhere' => app(PayherePaymentController::class)->index(),
+            'alatpay' => app(AlatPayController::class)->index($request),
             default => throw new HttpException(Response::HTTP_UNPROCESSABLE_ENTITY, 'Unsupported payment gateway.'),
         };
     }

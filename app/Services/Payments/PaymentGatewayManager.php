@@ -26,6 +26,7 @@ class PaymentGatewayManager
         'phonepe' => 'phonepe_payment',
         'payhere' => 'payhere_payment',
         'cash_on_delivery' => 'cash_payment',
+        'alatpay' => 'alatpay_payment',
     ];
 
     public function __construct()

@@ -39,7 +39,7 @@
             </div>
             <div class="stat-info">
               <div class="stat-label">Total Points</div>
-              <div class="stat-value">4</div>
+              <div class="stat-value">{{ formattedClubPoints }}</div>
             </div>
           </div>
         </div>
@@ -55,16 +55,17 @@
           <div class="progress-container">
             <div class="progress-bar"></div>
           </div>
-          <div class="points-info"><strong>104</strong> Points till the next level</div>
+          <div class="points-info"><strong>{{ pointsUntilNextLevel }}</strong> points until the next level</div>
         </div>
 
         <div class="earn-box">
-          <div class="earn-heading">How to earn points</div>
-          <ul class="points-list">
-            <li>Lorem ipsum dolor sit amet, consectetuer adipiscing elit.</li>
-            <li>Lorem ipsum dolor sit amet, consectetuer adipiscing elit.</li>
-            <li>Lorem ipsum dolor sit amet, consectetuer adipiscing elit.</li>
-          </ul>
+          <div class="earn-heading">How to Earn Kidan Points (KP)</div>
+          <div class="points-copy">
+            <p><strong>1. Earn When You Spend</strong><br>You earn Kidan Points every time you spend across the Kidan ecosystem — for example, every ₦10,000 spent on Kidan Store gives you 1 KP.</p>
+            <p><strong>2. Refer Your Friends</strong><br>You earn 5 KP each time you refer a friend to Kidan and they complete their first purchase, making it easy to grow your points while introducing others to the brand.</p>
+            <p><strong>3. Get Rewarded for Being Active</strong><br>You earn additional points when you engage with Kidan by leaving verified reviews on products or experiences and by sharing your purchases or moments on social media.</p>
+            <p><strong>4. Enjoy Special Bonuses</strong><br>You can earn bonus points during special moments like your birthday month, where you get double points on purchases, and during exclusive launches or campaigns where extra rewards are offered.</p>
+          </div>
         </div>
       </div>
 
@@ -113,6 +114,12 @@ export default {
         .join("")
         .toUpperCase()
         .slice(0, 2);
+    },
+    formattedClubPoints() {
+      return this.format_points(this.currentUser.club_points || 0);
+    },
+    pointsUntilNextLevel() {
+      return Math.max(0, Math.ceil(100 - Number(this.currentUser.club_points || 0)));
     }
   },
   methods: {
@@ -387,6 +394,19 @@ export default {
   @media (max-width: 480px) {
     padding: 18px 15px;
   }
+}
+
+.points-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  color: #222;
+  line-height: 1.65;
+  font-size: 13px;
+}
+
+.points-copy p {
+  margin: 0;
 }
 
 .earn-heading {

@@ -22,18 +22,80 @@
         </div>
 
         <div class="right-section d-flex align-center">
+          <div class="header-utilities">
+            <div
+              v-if="allLanguages.length > 1"
+              ref="languageMenu"
+              class="header-utility"
+            >
+              <button
+                class="icon-btn utility-trigger"
+                type="button"
+                aria-label="Choose language"
+                @click.stop="toggleLanguageMenu"
+              >
+                <i class="las la-globe"></i>
+              </button>
+
+              <div v-if="showLanguageMenu" class="utility-dropdown">
+                <div class="utility-dropdown__title">Language</div>
+                <button
+                  v-for="language in allLanguages"
+                  :key="language.code"
+                  type="button"
+                  class="utility-option"
+                  :class="{ 'is-active': currentLanguageCode === language.code }"
+                  @click.stop="switchLanguage(language.code)"
+                >
+                  <span>{{ language.name }}</span>
+                  <small>{{ language.code.toUpperCase() }}</small>
+                </button>
+              </div>
+            </div>
+
+            <div
+              v-if="allCurrencies.length > 0"
+              ref="currencyMenu"
+              class="header-utility"
+            >
+              <button
+                class="icon-btn utility-trigger"
+                type="button"
+                aria-label="Choose currency"
+                @click.stop="toggleCurrencyMenu"
+              >
+                <i class="las la-wallet"></i>
+              </button>
+
+              <div v-if="showCurrencyMenu" class="utility-dropdown utility-dropdown--wide">
+                <div class="utility-dropdown__title">Currency</div>
+                <button
+                  v-for="currency in allCurrencies"
+                  :key="currency.code"
+                  type="button"
+                  class="utility-option"
+                  :class="{ 'is-active': selectedCurrencyCode === currency.code }"
+                  @click.stop="switchCurrency(currency.code)"
+                >
+                  <span>{{ currency.code }}</span>
+                  <small>{{ currency.symbol }} · {{ currency.name }}</small>
+                </button>
+              </div>
+            </div>
+          </div>
+
           <!-- Search Icon - Always visible -->
           <router-link :to="{ name: 'Search' }" class="icon-btn search-trigger mobile-visible">
             <i class="las la-search"></i>
           </router-link>
 
           <!-- Paper Plane - Hidden on mobile -->
-          <button class="icon-btn d-none d-sm-flex">
+          <router-link :to="{ name: 'AllBrands' }" class="icon-btn d-none d-sm-flex brand-link" aria-label="Browse all brands">
             <i class="las la-paper-plane"></i>
-          </button>
+          </router-link>
 
 
-          <router-link :to="{ name: 'Wishlist' }" class="icon-btn d-none d-sm-flex">
+          <router-link :to="{ name: 'Wishlist' }" class="icon-btn d-none d-sm-flex wishlist-link">
             <i class="las la-heart"></i>
           </router-link>
 
@@ -103,6 +165,7 @@
 import { mapActions, mapGetters } from "vuex";
 import Sidebar from "./Sidebar.vue";
 import CategoryBar from "./CategoryBar.vue";
+import { loadLanguageAsync } from "../../plugins/i18n";
 
 export default {
   components: {
@@ -125,10 +188,21 @@ export default {
     isCategoryMenuOpen: false,
     lastScrollPosition: 0,
     scrollTimeout: null,
+    selectedCurrencyCode: "",
+    showLanguageMenu: false,
+    showCurrencyMenu: false,
     hideCategoryTimeout: null, // NEW: Timer for hiding categories
   }),
   computed: {
-    ...mapGetters("app", ["appLogo", "appName"]),
+    ...mapGetters("app", [
+      "appLogo",
+      "appName",
+      "allLanguages",
+      "allCurrencies",
+      "appLanguage",
+      "userLanguageObj",
+      "generalSettings",
+    ]),
     ...mapGetters("auth", ["isAuthenticated", "currentUser"]),
     ...mapGetters("cart", ["getCartCount", "getCartPrice", "getTotalCouponDiscount"]),
     hasStaticNonHomeHeader() {
@@ -145,6 +219,9 @@ export default {
         this.$store.commit("auth/updateCartDrawer", val);
       },
     },
+    currentLanguageCode() {
+      return this.userLanguageObj?.code || this.appLanguage || "en";
+    },
   },
   watch: {
     showSidebar(val) {
@@ -155,6 +232,7 @@ export default {
     },
     $route() {
       this.closeCartDrawer();
+      this.closeUtilityMenus();
     },
     isScrolled(newVal) {
       // Always show categories when scrolled
@@ -167,15 +245,22 @@ export default {
   beforeUnmount() {
     document.body.classList.remove("overflow-hidden");
     window.removeEventListener("scroll", this.handleScroll);
+    document.removeEventListener("click", this.handleDocumentClick);
     clearTimeout(this.scrollTimeout);
     this.clearHideTimer();
   },
   mounted() {
     this.fetchCategories();
     window.addEventListener("scroll", this.handleScroll);
+    document.addEventListener("click", this.handleDocumentClick);
+    this.selectedCurrencyCode =
+      this.generalSettings?.currency?.selected_currency_code ||
+      this.allCurrencies?.[0]?.code ||
+      "";
   },
   methods: {
     ...mapActions(["auth/logout"]),
+    ...mapActions("app", ["setLanguage", "setRTL"]),
     ...mapActions("cart", ["resetCart"]),
     ...mapActions("wishlist", ["resetWishlist"]),
     toggleCartDrawer() {
@@ -199,6 +284,71 @@ export default {
       this.resetWishlist();
       this.toggleAccountMenu();
       this.$router.push({ name: "Home" }).catch(() => { });
+    },
+    async switchLanguage(locale) {
+      if (!locale || this.currentLanguageCode === locale) {
+        return;
+      }
+
+      this.closeUtilityMenus();
+      this.setLanguage(locale);
+
+      const selectedLanguage = this.allLanguages.find(
+        (language) => language.code === locale
+      );
+      const isRtl = Number(selectedLanguage?.rtl) === 1 ? "rtl" : "";
+      this.setRTL(isRtl);
+
+      await loadLanguageAsync(locale);
+      window.location.reload();
+    },
+    async switchCurrency(currencyCode) {
+      if (!currencyCode || this.generalSettings?.currency?.selected_currency_code === currencyCode) {
+        return;
+      }
+
+      try {
+        this.closeUtilityMenus();
+        await window.axios.post("/currency/change", {
+          currency_code: currencyCode,
+        });
+        this.selectedCurrencyCode = currencyCode;
+        window.location.reload();
+      } catch (error) {
+        this.snack({
+          message: error?.response?.data?.message || "Unable to change currency right now.",
+          color: "red",
+        });
+      }
+    },
+    toggleLanguageMenu() {
+      this.showLanguageMenu = !this.showLanguageMenu;
+      if (this.showLanguageMenu) {
+        this.showCurrencyMenu = false;
+      }
+    },
+    toggleCurrencyMenu() {
+      this.showCurrencyMenu = !this.showCurrencyMenu;
+      if (this.showCurrencyMenu) {
+        this.showLanguageMenu = false;
+      }
+    },
+    closeUtilityMenus() {
+      this.showLanguageMenu = false;
+      this.showCurrencyMenu = false;
+    },
+    handleDocumentClick(event) {
+      const languageMenu = this.$refs.languageMenu;
+      const currencyMenu = this.$refs.currencyMenu;
+
+      if (
+        (languageMenu && languageMenu.contains(event.target)) ||
+        (currencyMenu && currencyMenu.contains(event.target))
+      ) {
+        return;
+      }
+
+      this.closeUtilityMenus();
     },
     handleHeaderMouseEnter() {
       if (this.hasStaticNonHomeHeader) {
@@ -350,6 +500,95 @@ export default {
 .left-section,
 .right-section {
   gap: 1.5rem;
+}
+
+.header-utilities {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header-utility {
+  position: relative;
+}
+
+.utility-trigger {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--header-fg);
+  font-size: 1.1rem;
+}
+
+.logobar.header-active .utility-trigger,
+.logobar.scrolled .utility-trigger,
+.logobar:not(.home-page) .utility-trigger {
+  border-color: rgba(0, 0, 0, 0.12);
+  background: rgba(255, 251, 243, 0.92);
+  color: #1a1a1a;
+}
+
+.utility-dropdown {
+  position: absolute;
+  top: calc(100% + 0.7rem);
+  right: 0;
+  min-width: 180px;
+  padding: 0.85rem;
+  background: #FFFBF3;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.12);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.utility-dropdown--wide {
+  min-width: 220px;
+}
+
+.utility-dropdown__title {
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7c7c7c;
+  margin-bottom: 0.1rem;
+}
+
+.utility-option {
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.6rem 0.65rem;
+  color: #1a1a1a;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.utility-option span {
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.utility-option small {
+  font-size: 0.72rem;
+  color: #6d6d6d;
+}
+
+.utility-option:hover,
+.utility-option.is-active {
+  background: rgba(128, 0, 0, 0.08);
+  color: #800000;
+}
+
+.utility-option:hover small,
+.utility-option.is-active small {
+  color: #800000;
 }
 
 .menu-btn {
@@ -510,11 +749,15 @@ export default {
   }
 
   /* Hide all icons except search on mobile */
-  .right-section>*:not(.search-trigger) {
+  .right-section>*:not(.search-trigger):not(.header-utilities) {
     display: none !important;
   }
 
   .right-section>.search-trigger.mobile-visible {
+    display: flex !important;
+  }
+
+  .right-section>.header-utilities {
     display: flex !important;
   }
 }
@@ -528,8 +771,8 @@ export default {
   }
 
   /* Hide paper plane and heart on tablet if needed */
-  .right-section>.icon-btn:not(.search-trigger):nth-child(2),
-  .right-section>.icon-btn:not(.search-trigger):nth-child(3) {
+  .brand-link,
+  .wishlist-link {
     display: none !important;
   }
 }
@@ -554,6 +797,10 @@ export default {
   .top-bar-container {
     padding: 0.875rem 1rem !important;
     min-height: 70px;
+  }
+
+  .utility-dropdown {
+    right: -0.25rem;
   }
 
   .logo-img {

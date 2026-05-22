@@ -1,7 +1,7 @@
 <template>
     <div class="pb-6">
         <v-container>
-            <h1 class="mb-7 mt-4">{{ $t('all_offers') }}</h1>
+            <h1 class="mb-7 mt-4">All Offers</h1>
             <v-row v-if="offers.length">
                 <v-col cols="12" md="6" v-for="(offer, i) in offers" :key="i">
                     <div v-if="loading">

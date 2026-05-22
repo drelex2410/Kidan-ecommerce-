@@ -190,7 +190,10 @@
           </swiper>
         </div>
 
-        <div class="mb-5">
+        <div
+          v-if="moreLoading || moreProducts.length > 0"
+          class="mb-5"
+        >
           <h2 class="mb-3 fs-21 opacity-80">
             {{ $t("more_items_to_explore") }}
           </h2>
@@ -218,7 +221,10 @@
         cols="12"
         class="sticky-top right-bar product-sidebar-column pa-0"
       >
-        <div class="mb-4 single-product-related-panel">
+        <div
+          v-if="relatedLoading || relatedProducts.length > 0"
+          class="mb-4 single-product-related-panel"
+        >
           <div class="mb-3 fw-600 fs-14">Related Items</div>
           <div class="single-product-related-list">
             <product-box
@@ -260,14 +266,14 @@ export default {
     productDetails: {},
     reviewSummary: { average: 0 },
     relatedLoading: true,
-    relatedProducts: [{}, {}, {}, {}, {}],
+    relatedProducts: [{}, {}, {}, {}],
     togetherLoading: true,
-    boughtTogetherProducts: [{}, {}, {}, {}, {}],
+    boughtTogetherProducts: [{}, {}, {}, {}],
     moreLoading: true,
-    moreProducts: [{}, {}, {}, {}, {}],
+    moreProducts: [{}, {}, {}, {}],
     panel: [0],
     carouselOption: {
-      slidesPerView: 5,
+      slidesPerView: 4,
       spaceBetween: 20,
       breakpoints: {
         0: {
@@ -287,7 +293,7 @@ export default {
           spaceBetween: 20,
         },
         1904: {
-          slidesPerView: 5,
+          slidesPerView: 4,
           spaceBetween: 20,
         },
       },
@@ -390,9 +396,9 @@ export default {
         this.productDetails = res.data.data;
         this.reviewSummary = this.productDetails.review_summary;
 
-        this.getRelatedProducts(this.productDetails.id);
-        this.getBoughtTogetherProducts(this.productDetails.id);
-        this.getMoreProducts(this.productDetails.id);
+        await this.getRelatedProducts(this.productDetails.id);
+        await this.getBoughtTogetherProducts(this.productDetails.id);
+        await this.getMoreProducts(this.productDetails.id);
         this.addNewRecentlyViewedProduct(this.productDetails.id);
       } else {
         this.snack({
@@ -406,23 +412,39 @@ export default {
     async getRelatedProducts(id) {
       const res = await this.call_api("get", `product/related/${id}`);
       if (res.data.success) {
-        this.relatedProducts = res.data.data;
+        this.relatedProducts = this.limitUniqueProducts(res.data.data, 4);
         this.relatedLoading = false;
       }
     },
     async getBoughtTogetherProducts(id) {
       const res = await this.call_api("get", `product/bought-together/${id}`);
       if (res.data.success) {
-        this.boughtTogetherProducts = res.data.data;
+        this.boughtTogetherProducts = this.limitUniqueProducts(
+          res.data.data,
+          4,
+          this.relatedProducts.map((product) => product.id)
+        );
         this.togetherLoading = false;
       }
     },
     async getMoreProducts(id) {
-      const res = await this.call_api("get", `product/random/10/${id}`);
+      const excludedIds = [
+        ...this.relatedProducts.map((product) => product.id),
+        ...this.boughtTogetherProducts.map((product) => product.id),
+      ];
+      const res = await this.call_api("get", `product/random/4/${id}`);
       if (res.data.success) {
-        this.moreProducts = res.data.data;
+        this.moreProducts = this.limitUniqueProducts(res.data.data, 4, excludedIds);
         this.moreLoading = false;
       }
+    },
+    limitUniqueProducts(products = [], limit = 4, excludedIds = []) {
+      const excluded = new Set((excludedIds || []).filter(Boolean).map((id) => Number(id)));
+
+      return (products || [])
+        .filter((product) => product?.id && !excluded.has(Number(product.id)))
+        .filter((product, index, list) => list.findIndex((item) => Number(item.id) === Number(product.id)) === index)
+        .slice(0, limit);
     },
     async productReferralCode(product_referral_code) {
       const res = await this.call_api("post", "product-refferal-code", {

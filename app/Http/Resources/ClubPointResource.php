@@ -17,7 +17,7 @@ class ClubPointResource extends JsonResource
         return [
             'id' => $this->id,
             'user_id' => $this->user_id,
-            'points' => $this->points,
+            'points' => round((float) $this->points, 6),
             'convert_status' => (int) $this->convert_status,
             'created_at' => date('d-m-Y', strtotime($this->created_at)),
             'order_code' =>$this->combined_order?->code,

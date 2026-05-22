@@ -25,7 +25,7 @@ class ProductCardResource extends JsonResource
             'min_qty' => (int) $this->min_qty,
             'max_qty' => (int) $this->max_qty,
             'rating' => (double) $this->rating,
-            'earn_point' => (float) $this->earn_point,
+            'earn_point' => round((float) $this->earn_point, 6),
             'is_variant' => (int) $this->is_variant,
             'variations' => $this->variations->map(function ($variation) {
                 return [

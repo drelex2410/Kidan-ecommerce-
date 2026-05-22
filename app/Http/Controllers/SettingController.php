@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Contracts\ApplicationBootstrap;
 use App\Http\Services\AdminShopService;
 use App\Models\Setting;
+use App\Services\Payments\AlatPay\AlatPayConfig;
 use App\Models\User;
 use Artisan;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
@@ -55,10 +56,31 @@ class SettingController extends Controller
         return view('backend.settings.third_party_settings');
     }
 
-    public function payment_method(Request $request)
+    public function payment_method(Request $request, AlatPayConfig $alatPayConfig)
     {
         app(ApplicationBootstrap::class)->initialize();
-        return view('backend.settings.payment_method');
+        $secretState = $alatPayConfig->secretsState();
+
+        return view('backend.settings.payment_method', [
+            'alatpaySummary' => $alatPayConfig->summary(),
+            'alatpaySettings' => [
+                'env' => $alatPayConfig->environment(),
+                'base_url' => $alatPayConfig->baseUrl(),
+                'merchant_id' => $alatPayConfig->merchantId(),
+                'client_id' => $alatPayConfig->clientId(),
+                'client_secret' => '',
+                'subscription_key' => '',
+                'callback_url' => $alatPayConfig->callbackUrl(),
+                'webhook_secret' => '',
+                'supported_currencies' => implode(', ', $alatPayConfig->supportedCurrencies()),
+                'charge_type' => $alatPayConfig->chargeType(),
+                'charge_flat' => $alatPayConfig->chargeFlat(),
+                'charge_percent' => $alatPayConfig->chargePercent(),
+                'has_client_secret' => $secretState['client_secret'],
+                'has_subscription_key' => $secretState['subscription_key'],
+                'has_webhook_secret' => $secretState['webhook_secret'],
+            ],
+        ]);
     }
 
     public function file_system(Request $request)

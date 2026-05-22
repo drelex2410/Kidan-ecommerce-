@@ -16,7 +16,7 @@
                                 <label class="col-from-label">{{translate('Set Point')}}</label>
                             </div>
                             <div class="col-lg-8">
-                                <input type="number" min="0" step="0.01" class="form-control" name="point" value="{{ $product->earn_point }}" placeholder="100" required>
+                                <input type="number" min="0" step="0.000001" class="form-control" name="point" value="{{ $product->earn_point }}" placeholder="100" required>
                             </div>
                         </div>
                         <div class="form-group mb-0 text-right">

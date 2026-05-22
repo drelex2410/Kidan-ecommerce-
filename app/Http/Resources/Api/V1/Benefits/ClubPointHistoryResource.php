@@ -12,7 +12,7 @@ class ClubPointHistoryResource extends JsonResource
         return [
             'id' => (int) $this->id,
             'user_id' => (int) $this->user_id,
-            'points' => (int) $this->points,
+            'points' => round((float) $this->points, 6),
             'convert_status' => (int) $this->convert_status,
             'created_at' => $this->created_at ? $this->created_at->format('d-m-Y') : null,
             'order_code' => optional($this->combined_order)->code,

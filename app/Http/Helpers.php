@@ -93,9 +93,16 @@ if (!function_exists('format_price')) {
 if (!function_exists('currency_symbol')) {
     function currency_symbol()
     {
-        return Cache::rememberForever('system_default_currency_symbol', function () {
-            return Currency::find(get_setting('system_default_currency'))->symbol;
-        });
+        $selectedCurrencyCode = Session::get('currency_code');
+
+        if ($selectedCurrencyCode) {
+            return Cache::remember("selected_currency_symbol_{$selectedCurrencyCode}", 86400, function () use ($selectedCurrencyCode) {
+                return optional(Currency::query()->where('code', $selectedCurrencyCode)->where('status', 1)->first())->symbol
+                    ?: optional(get_system_default_currency())->symbol;
+            });
+        }
+
+        return optional(get_system_default_currency())->symbol;
     }
 }
 
@@ -353,9 +360,17 @@ if (!function_exists('get_system_default_currency')) {
 if (!function_exists('convert_price')) {
     function convert_price($price)
     {
-        if (Session::has('currency_code') && (Session::get('currency_code') != get_system_default_currency()->code)) {
+        $selectedCurrencyCode = Session::get('currency_code');
+
+        if ($selectedCurrencyCode && ($selectedCurrencyCode != get_system_default_currency()->code)) {
+            $selectedCurrency = Cache::remember("selected_currency_rate_{$selectedCurrencyCode}", 86400, function () use ($selectedCurrencyCode) {
+                return Currency::query()->where('code', $selectedCurrencyCode)->where('status', 1)->first(['exchange_rate']);
+            });
+
+            $selectedExchangeRate = (float) ($selectedCurrency?->exchange_rate ?? Session::get('currency_exchange_rate') ?? 1);
+
             $price = floatval($price) / floatval(get_system_default_currency()->exchange_rate);
-            $price = floatval($price) * floatval(Session::get('currency_exchange_rate'));
+            $price = floatval($price) * $selectedExchangeRate;
         }
         return $price;
     }

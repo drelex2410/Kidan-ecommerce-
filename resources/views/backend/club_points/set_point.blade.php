@@ -71,7 +71,7 @@
                               <label class="col-from-label">{{translate('Set Point for multiple products')}}</label>
                           </div>
                           <div class="col-lg-6">
-                              <input type="number" min="0" step="0.01" class="form-control" name="point" placeholder="100" required>
+                              <input type="number" min="0" step="0.000001" class="form-control" name="point" placeholder="100" required>
                           </div>
                       </div>
                       <div class="form-group row">
@@ -108,7 +108,7 @@
                               <label class="col-from-label">{{translate('Set Point For ')}} {{ single_price(1) }}</label>
                           </div>
                           <div class="col-lg-6">
-                              <input type="number" step="0.001" class="form-control" name="point" placeholder="1" required>
+                              <input type="number" min="0" step="0.000001" class="form-control" name="point" placeholder="1" required>
                           </div>
                           <div class="col-lg-2">
                               <label class="col-from-label">{{translate('Points')}}</label>

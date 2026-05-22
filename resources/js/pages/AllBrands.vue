@@ -2,7 +2,7 @@
 
     <div class="pb-6">
         <v-container>
-            <h1 class="mb-7 mt-4">{{ $t('all_brands') }}</h1>
+            <h1 class="mb-7 mt-4">All Brands</h1>
             <v-row v-if="brands.length" class="row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 row-cols-xl-6">
                 <v-col v-for="(brand, i) in brands" :key="i" cols="12" md="2" sm="3">
                     <div v-if="loading">

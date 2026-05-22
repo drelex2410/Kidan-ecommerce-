@@ -81,7 +81,7 @@
           <template v-else>
             <button type="button" class="filter-option" @click="$router.push({ name: 'Shop' })">
               <span class="option-indicator"></span>
-              <span class="option-text">{{ $t("all_categories") }}</span>
+              <span class="option-text">All Categories</span>
             </button>
             <button
               v-if="!is_empty_obj(parentCategory)"

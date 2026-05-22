@@ -249,8 +249,8 @@ class JournalService
                 'slug' => $product->slug,
                 'image' => $this->contentMedia->asset($product->thumbnail_img),
                 'description' => $description,
-                'price' => (double) product_discounted_base_price($product),
-                'formatted_price' => 'NGN ' . number_format((double) product_discounted_base_price($product)),
+                'price' => (double) product_discounted_base_price($product, false),
+                'formatted_price' => 'NGN ' . number_format((double) product_discounted_base_price($product, false)),
             ];
         })->values()->all();
     }

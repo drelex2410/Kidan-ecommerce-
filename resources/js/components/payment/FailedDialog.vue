@@ -21,6 +21,8 @@
 </template>
 
 <script>
+import { mapGetters } from "vuex";
+
 export default {
     data() {
         return {
@@ -28,6 +30,10 @@ export default {
             orderCode: null,
             paymentMethod: null,
         };
+    },
+    computed: {
+        ...mapGetters("auth", ["currentUser"]),
+        ...mapGetters("cart", ["getSelectedCartIds", "getTempUserId"]),
     },
     methods: {
         open({orderCode,paymentMethod}) {
@@ -44,8 +50,10 @@ export default {
                 paymentAmount: 0,
                 paymentMethod: this.paymentMethod,
                 paymentType: 'cart_payment',
-                userId: this.$parent.currentUser.id,
+                userId: this.currentUser?.id || null,
                 oderCode: this.orderCode,
+                tempUserId: this.getTempUserId,
+                cartItemIds: [...this.getSelectedCartIds],
             })
         },
     },

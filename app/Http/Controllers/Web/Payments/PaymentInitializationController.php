@@ -21,8 +21,7 @@ class PaymentInitializationController extends Controller
         try {
             return $this->paymentInitializationService->initializeWeb($gateway, $request);
         } catch (HttpException $exception) {
-            return redirect($request->input('redirect_to', '/'))
-                ->with('payment_error', $exception->getMessage());
+            return $this->failedRedirect($request, $gateway, $exception->getMessage());
         } catch (Throwable $exception) {
             Log::error('Web payment initialization failed unexpectedly.', [
                 'gateway' => $gateway,
@@ -33,8 +32,27 @@ class PaymentInitializationController extends Controller
                 'exception_message' => $exception->getMessage(),
             ]);
 
-            return redirect($request->input('redirect_to', '/'))
-                ->with('payment_error', 'Payment provider is unavailable at the moment. Please try again or use another payment method.');
+            return $this->failedRedirect(
+                $request,
+                $gateway,
+                'Payment provider is unavailable at the moment. Please try again or use another payment method.'
+            );
         }
+    }
+
+    private function failedRedirect(Request $request, string $gateway, string $message)
+    {
+        $paymentType = (string) $request->input('payment_type', 'payment');
+        $query = [
+            $paymentType => 'failed',
+            'payment_method' => $gateway,
+            'payment_error' => $message,
+        ];
+
+        if ($request->filled('order_code')) {
+            $query['order_code'] = $request->input('order_code');
+        }
+
+        return redirect($request->input('redirect_to', '/') . '?' . http_build_query($query));
     }
 }

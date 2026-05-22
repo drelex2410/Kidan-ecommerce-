@@ -79,7 +79,7 @@ class ProductDetailResource extends JsonResource
                 'code' => $variation->code === null ? null : array_values(array_filter(explode('/', (string) $variation->code))),
                 'img' => $variation->img,
                 'image' => $variation->img ? api_asset($variation->img) : null,
-                'price' => variation_discounted_price($this->resource, $variation),
+                'price' => variation_discounted_price($this->resource, $variation, false),
                 'stock' => (int) $variation->stock,
                 'current_stock' => (int) ($variation->current_stock ?? $variation->stock),
             ];

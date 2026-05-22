@@ -24,7 +24,7 @@ class ManualPaymentResource extends JsonResource
             'heading'       => $this->heading,
             'description'   => $this->description,
             'bank_info'     => $this->bank_info ? json_decode($this->bank_info): [],
-            'img'           => uploaded_asset($this->photo)
+            'img'           => $this->photo ? uploaded_asset($this->photo) : null,
         ];
     }
 }

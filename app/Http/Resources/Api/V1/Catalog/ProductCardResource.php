@@ -18,8 +18,8 @@ class ProductCardResource extends JsonResource
                 ->map(fn ($photo) => api_asset(trim($photo)))
                 ->values()
                 ->all(),
-            'base_price' => (double) product_base_price($this->resource),
-            'base_discounted_price' => (double) product_discounted_base_price($this->resource),
+            'base_price' => (double) product_base_price($this->resource, false),
+            'base_discounted_price' => (double) product_discounted_base_price($this->resource, false),
             'stock' => (int) $this->stock,
             'unit' => $this->getTranslation('unit'),
             'min_qty' => (int) $this->min_qty,
@@ -33,7 +33,7 @@ class ProductCardResource extends JsonResource
                     'code' => $variation->code === null ? null : array_values(array_filter(explode('/', (string) $variation->code))),
                     'img' => $variation->img,
                     'image' => $variation->img ? api_asset($variation->img) : null,
-                    'price' => variation_discounted_price($this->resource, $variation),
+                    'price' => variation_discounted_price($this->resource, $variation, false),
                     'stock' => (int) $variation->stock,
                     'current_stock' => (int) ($variation->current_stock ?? $variation->stock),
                 ];

@@ -63,6 +63,30 @@ class PhaseNinePaymentsTest extends TestCase
         ]);
     }
 
+    public function test_payment_initializer_reuses_existing_pending_transaction_for_same_order_and_gateway(): void
+    {
+        $user = $this->createUser();
+        $combinedOrder = $this->createCombinedOrder($user, 'unpaid');
+        $existingPayment = $this->createPayment($user, $combinedOrder, 'cart_payment', 'paystack', 120);
+
+        $response = $this->withToken($user->createToken('frontend-web')->plainTextToken)
+            ->postJson('/api/v1/payment/paystack/pay', [
+                'redirect_to' => '/checkout',
+                'payment_method' => 'paystack',
+                'payment_type' => 'cart_payment',
+                'user_id' => $user->id,
+                'order_code' => $combinedOrder->code,
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('go_to_payment', true)
+            ->assertJsonPath('payment_method', 'paystack');
+
+        $this->assertSame(1, Payment::query()->count());
+        $this->assertSame($existingPayment->id, (int) Payment::query()->value('id'));
+    }
+
     public function test_guest_payment_initializer_returns_handoff_for_guest_order(): void
     {
         $combinedOrder = $this->createGuestCombinedOrder('unpaid');

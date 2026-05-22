@@ -14,7 +14,7 @@
         > {{$t('reorder')  }}</div>
 
         <repayment-dialog :show="RepaymentDialogShow" :from="`user/purchase-history/${orderDetails.code}`" :combined-order="orderDetails" @close="rePaymentDialogClosed" />
-        <div v-if="orderDetails.orders[0].payment_status == 'unpaid'"
+        <div v-if="canRetryPayment"
       class="re-payment fs-12 c-pointer text-primary ml-4"
         @click.stop="RepaymentDialogShow = true"
         > {{$t('pay_now')  }}</div>
@@ -106,19 +106,21 @@
           </v-list-item>
 
           <!-- show offline payment data -->
-          <v-list-item v-if="orderDetails.orders[0].payment_type === 'offline_payment'">
+          <v-list-item
+            v-if="String(orderDetails.orders[0].payment_type || '').includes('offline_payment') && orderDetails.orders[0].manual_payment_data"
+          >
             <v-row>
               <v-col cols="6">
                 <v-list-item-title class="fw-700">{{ $t('payment_details') }} :</v-list-item-title>
               </v-col>
               <v-col cols="6">
                 <v-list-item-title class="align-end text-capitalize">
-              <span>{{ $t('transaction_id') }}: {{ $t(orderDetails.orders[0].manual_payment_data.transactionId) }}</span>
+              <span>{{ $t('transaction_id') }}: {{ orderDetails.orders[0].manual_payment_data.transactionId }}</span>
               <span>
-                {{ $t('paid_via') }}: {{ $t(orderDetails.orders[0].manual_payment_data.payment_method) }}
+                {{ $t('paid_via') }}: {{ orderDetails.orders[0].manual_payment_data.payment_method }}
                 <a
-                  :href="appUrl+'/public/'+orderDetails.orders[0].manual_payment_data.reciept"
-                  v-if="orderDetails.orders[0].manual_payment_data.reciept"
+                  :href="appUrl+'/public/'+(orderDetails.orders[0].manual_payment_data.reciept || orderDetails.orders[0].manual_payment_data.receipt)"
+                  v-if="orderDetails.orders[0].manual_payment_data.reciept || orderDetails.orders[0].manual_payment_data.receipt"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -195,6 +197,19 @@ export default {
   components: { OrderPackage, RepaymentDialog },
   computed: {
     ...mapGetters("app", ["appUrl"]),
+    primaryOrder() {
+      return this.orderDetails?.orders?.[0] || {};
+    },
+    hasPendingManualVerification() {
+      return Boolean(
+        this.primaryOrder?.manual_payment &&
+          String(this.primaryOrder?.payment_type || "").includes("offline_payment") &&
+          this.primaryOrder?.payment_status !== "paid"
+      );
+    },
+    canRetryPayment() {
+      return this.primaryOrder?.payment_status === "unpaid" && !this.hasPendingManualVerification;
+    },
   },
   props: {
     orderDetails: { type: Object, default: () => {} },

@@ -532,23 +532,87 @@
             v-if="selectedPaymentMethod?.code?.includes('offline_payment')"
             class="checkout-payment-extra"
           >
-            <div class="checkout-form-grid">
-              <div class="checkout-form-field checkout-form-field--full">
-                <label>Transaction ID</label>
-                <input
-                  v-model="transactionId"
-                  class="checkout-input"
-                  type="text"
-                />
+            <div
+              v-if="!transferOrderContext"
+              class="checkout-transfer-note"
+            >
+              <strong>Transfer Instructions</strong>
+              <p>
+                We’ll create your order first, then show the bank transfer
+                details and collect your transaction reference for manual
+                verification.
+              </p>
+            </div>
+
+            <div
+              v-else
+              class="checkout-transfer-panel"
+            >
+              <div class="checkout-transfer-panel__intro">
+                <strong>Transfer Details</strong>
+                <p>
+                  Complete the transfer using the account details below, then
+                  submit your transaction reference so our team can verify the
+                  payment.
+                </p>
               </div>
-              <div class="checkout-form-field checkout-form-field--full">
-                <label>Add Receipt</label>
-                <input
-                  class="checkout-input"
-                  type="file"
-                  accept="image/*"
-                  @change="receipt = $event.target.files?.[0] || null"
-                />
+
+              <div class="checkout-transfer-panel__meta">
+                <div>
+                  <span>Order Reference</span>
+                  <strong>#{{ transferOrderContext.order_code }}</strong>
+                </div>
+                <div>
+                  <span>Amount to Transfer</span>
+                  <strong>{{ format_price(transferOrderContext.grand_total, false) }}</strong>
+                </div>
+                <div v-if="activeTransferMethod?.name">
+                  <span>Transfer Method</span>
+                  <strong>{{ activeTransferMethod.name }}</strong>
+                </div>
+              </div>
+
+              <div
+                v-if="activeTransferMethod?.description"
+                class="checkout-transfer-panel__description"
+                v-html="activeTransferMethod.description"
+              ></div>
+
+              <div
+                v-if="activeTransferMethod?.bank_info?.length"
+                class="checkout-transfer-bank-list"
+              >
+                <div
+                  v-for="(bankInfo, bankIndex) in activeTransferMethod.bank_info"
+                  :key="`${bankInfo.account_number}-${bankIndex}`"
+                  class="checkout-transfer-bank-card"
+                >
+                  <div><span>Bank Name</span><strong>{{ bankInfo.bank_name || "N/A" }}</strong></div>
+                  <div><span>Account Name</span><strong>{{ bankInfo.account_name || "N/A" }}</strong></div>
+                  <div><span>Account Number</span><strong>{{ bankInfo.account_number || "N/A" }}</strong></div>
+                  <div v-if="bankInfo.routing_number"><span>Routing Number</span><strong>{{ bankInfo.routing_number }}</strong></div>
+                </div>
+              </div>
+
+              <div class="checkout-form-grid">
+                <div class="checkout-form-field checkout-form-field--full">
+                  <label>Transaction ID / Payment Reference</label>
+                  <input
+                    v-model="transactionId"
+                    class="checkout-input"
+                    type="text"
+                    placeholder="Enter your transfer reference"
+                  />
+                </div>
+                <div class="checkout-form-field checkout-form-field--full">
+                  <label>Upload Receipt (Optional)</label>
+                  <input
+                    class="checkout-input"
+                    type="file"
+                    accept="image/*,.pdf"
+                    @change="receipt = $event.target.files?.[0] || null"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -659,6 +723,7 @@ export default {
       selectedPaymentMethod: null,
       selectedDeliveryOption: "",
       selectedDeliveryType: "home_delivery",
+      transferOrderContext: null,
       standardDeliveryCost: 0,
       expressDeliveryCost: 0,
       standardDeliveryTotal: 0,
@@ -826,8 +891,13 @@ export default {
         return "Select Payment Method";
       }
 
-      return ["cash_on_delivery", "wallet"].includes(this.selectedPaymentMethod.code) ||
-        this.selectedPaymentMethod.code.includes("offline_payment")
+      if (this.selectedPaymentMethod.code.includes("offline_payment")) {
+        return this.transferOrderContext
+          ? "Submit Transfer Reference"
+          : "Continue to Transfer Details";
+      }
+
+      return ["cash_on_delivery", "wallet"].includes(this.selectedPaymentMethod.code)
         ? "Complete Order"
         : "Make Payment";
     },
@@ -897,6 +967,17 @@ export default {
           (pickupPoint) => Number(pickupPoint.id) === Number(this.selectedPickupPoint)
         ) || null
       );
+    },
+    activeTransferMethod() {
+      return this.transferOrderContext?.manual_payment_method || this.selectedPaymentMethod || null;
+    },
+    activeTransferCartIds() {
+      return this.transferOrderContext?.cart_item_ids?.length
+        ? this.transferOrderContext.cart_item_ids
+        : [...this.getSelectedCartIds];
+    },
+    activeTransferTempUserId() {
+      return this.transferOrderContext?.temp_user_id || this.getTempUserId || null;
     },
   },
   watch: {
@@ -980,11 +1061,36 @@ export default {
       this.rechargeDialogShow = false;
     },
     paymentSelected(event, paymentMethod) {
+      if (
+        this.transferOrderContext &&
+        this.selectedPaymentMethod &&
+        paymentMethod.code !== this.selectedPaymentMethod.code
+      ) {
+        this.snack({
+          message: `Finish submitting the current transfer reference before changing payment method.`,
+          color: "red",
+        });
+        return;
+      }
+
       this.selectedPaymentMethod = paymentMethod;
+
+      if (!paymentMethod.code.includes("offline_payment")) {
+        this.resetTransferState();
+      }
     },
     walletSelected() {
+      if (this.transferOrderContext) {
+        this.snack({
+          message: `Finish submitting the current transfer reference before switching payment method.`,
+          color: "red",
+        });
+        return;
+      }
+
       if (this.currentUser.balance >= this.totalPrice) {
         this.selectedPaymentMethod = { code: "wallet", name: "Wallet" };
+        this.resetTransferState();
       } else {
         this.snack({
           message: `You don't have enough wallet balance. Please recharge.`,
@@ -1181,44 +1287,12 @@ export default {
     },
     paymentMethodDescription(paymentMethod) {
       if (paymentMethod.code.includes("offline_payment")) {
-        return "Submit your proof of payment";
+        return "Review transfer details and submit your payment reference";
       }
 
       return "Complete your payment";
     },
-    async proceedCheckout() {
-      if (!this.validateShippingStep()) {
-        this.currentStep = 1;
-        return;
-      }
-
-      if (!this.checkbox) {
-        this.snack({
-          message: `You need to agree with our policies`,
-          color: "red",
-        });
-        return;
-      }
-
-      if (!this.selectedPaymentMethod) {
-        this.snack({
-          message: `Please select a payment method`,
-          color: "red",
-        });
-        return;
-      }
-
-      if (
-        this.selectedPaymentMethod.code.includes("offline_payment") &&
-        this.transactionId === null
-      ) {
-        this.snack({
-          message: this.$i18n.t("please_input_transaction_id"),
-          color: "red",
-        });
-        return;
-      }
-
+    buildCheckoutFormData({ includeTransferReference = false } = {}) {
       const formData = new FormData();
       formData.append("shipping_address_id", this.selectedShippingAddressId ?? "");
       formData.append("billing_address_id", this.selectedBillingAddressId ?? "");
@@ -1255,15 +1329,217 @@ export default {
         formData.append("coupon_codes[]", couponItem);
       });
 
+      if (includeTransferReference) {
+        formData.append("transactionId", this.transactionId ?? "");
+        if (this.receipt) {
+          formData.append("receipt", this.receipt);
+        }
+      }
+
+      return formData;
+    },
+    clearLocalCheckoutCart(cartItemIds = [...this.getSelectedCartIds]) {
+      const selectedIds = [...cartItemIds];
+
+      this.resetCoupon();
+
+      if (selectedIds.length > 0) {
+        this.removeMultipleFromCart(selectedIds);
+      }
+    },
+    resetTransferState() {
+      this.transferOrderContext = null;
+      this.transactionId = null;
+      this.receipt = null;
+
+      if (typeof window !== "undefined") {
+        window.sessionStorage.removeItem("pendingTransferCheckout");
+      }
+    },
+    persistTransferState() {
+      if (typeof window === "undefined" || !this.transferOrderContext) {
+        return;
+      }
+
+      window.sessionStorage.setItem(
+        "pendingTransferCheckout",
+        JSON.stringify({
+          ...this.transferOrderContext,
+          payment_code: this.selectedPaymentMethod?.code || null,
+          cart_item_ids: [...this.activeTransferCartIds],
+          temp_user_id: this.activeTransferTempUserId,
+        })
+      );
+    },
+    restoreTransferState() {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const raw = window.sessionStorage.getItem("pendingTransferCheckout");
+
+      if (!raw) {
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(raw);
+
+        if (!parsed?.order_code || !parsed?.payment_code) {
+          return;
+        }
+
+        const matchedMethod = this.visiblePaymentMethods.find(
+          (method) => method.code === parsed.payment_code
+        );
+
+        if (!matchedMethod) {
+          return;
+        }
+
+        this.selectedPaymentMethod = matchedMethod;
+        this.transferOrderContext = parsed;
+      } catch (error) {
+        console.error("Unable to restore transfer checkout state.", error);
+      }
+    },
+    async submitTransferReference() {
+      if (!this.transferOrderContext) {
+        return;
+      }
+
+      if (!this.transactionId) {
+        this.snack({
+          message: this.$i18n.t("please_input_transaction_id"),
+          color: "red",
+        });
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("redirect_to", "/checkout");
+      formData.append("amount", this.transferOrderContext.grand_total);
+      formData.append("payment_method", this.selectedPaymentMethod.code);
+      formData.append("payment_type", "cart_payment");
+      formData.append("user_id", this.currentUser?.id || "");
+      formData.append("order_code", this.transferOrderContext.order_code);
+      formData.append("temp_user_id", this.activeTransferTempUserId ?? "");
       formData.append("transactionId", this.transactionId);
+
+      this.activeTransferCartIds.forEach((item) => {
+        formData.append("cart_item_ids[]", item);
+      });
+
       if (this.receipt) {
         formData.append("receipt", this.receipt);
       }
 
+      const res = await this.call_api(
+        "post",
+        `payment/${this.selectedPaymentMethod.code}/pay`,
+        formData,
+        true
+      );
+
+      if (!res.data.success) {
+        this.snack({
+          message: res.data.message,
+          color: "red",
+        });
+        return;
+      }
+
+      this.clearLocalCheckoutCart(this.activeTransferCartIds);
+      const successMessage =
+        res.data.message ||
+        "Your transfer reference has been submitted and is awaiting verification.";
+      const orderCode = this.transferOrderContext.order_code;
+      this.resetTransferState();
+      this.snack({
+        message: successMessage,
+        color: "green",
+      });
+      this.$router
+        .push({
+          name: "OrderConfirmed",
+          query: {
+            orderCode,
+            pendingTransfer: 1,
+          },
+        })
+        .catch(() => {});
+    },
+    async proceedCheckout() {
+      if (this.checkoutLoading) {
+        return;
+      }
+
+      if (!this.validateShippingStep()) {
+        this.currentStep = 1;
+        return;
+      }
+
+      if (!this.checkbox) {
+        this.snack({
+          message: `You need to agree with our policies`,
+          color: "red",
+        });
+        return;
+      }
+
+      if (!this.selectedPaymentMethod) {
+        this.snack({
+          message: `Please select a payment method`,
+          color: "red",
+        });
+        return;
+      }
+
+      if (this.selectedPaymentMethod.code.includes("offline_payment") && this.transferOrderContext) {
+        this.checkoutLoading = true;
+
+        try {
+          await this.submitTransferReference();
+        } finally {
+          this.checkoutLoading = false;
+        }
+
+        return;
+      }
+
       if (this.getCartPrice > 0) {
         this.checkoutLoading = true;
-        const res = await this.call_api("post", "checkout/order/store", formData);
-        if (res.data.success) {
+
+        try {
+          const formData = this.buildCheckoutFormData();
+          const res = await this.call_api("post", "checkout/order/store", formData);
+
+          if (!res.data.success) {
+            this.snack({
+              message: res.data.message,
+              color: "red",
+            });
+            return;
+          }
+
+          if (res.data.manual_transfer_required) {
+            this.transferOrderContext = {
+              order_code: res.data.order_code,
+              grand_total: res.data.grand_total,
+              manual_payment_method: res.data.manual_payment_method,
+              cart_item_ids: [...this.getSelectedCartIds],
+              temp_user_id: this.getTempUserId ?? null,
+            };
+            this.persistTransferState();
+            this.snack({
+              message:
+                res.data.message ||
+                "Order created. Complete the transfer details below to submit your payment for verification.",
+              color: "green",
+            });
+            return;
+          }
+
           if (res.data.payment_method == "wallet") {
             this.deductFromWallet(res.data.grand_total);
           }
@@ -1271,17 +1547,21 @@ export default {
           if (res.data.go_to_payment) {
             this.$refs.makePayment.pay({
               requestedFrom: "/checkout",
-              paymentAmount: 0,
+              paymentAmount: res.data.grand_total,
               paymentMethod: res.data.payment_method,
               paymentType: "cart_payment",
               userId: this.currentUser?.id || null,
               oderCode: res.data.order_code,
+              tempUserId: this.getTempUserId ?? null,
+              cartItemIds: [...this.getSelectedCartIds],
               card_number: this.authorizeNet.card_number,
               cvv: this.authorizeNet.cvv,
-              expiration_month: this.authorizeNet.expiration_month,
+              expiration_month:
+                this.months.indexOf(this.authorizeNet.expiration_month) + 1 || "",
               expiration_year: this.authorizeNet.expiration_year,
             });
           } else {
+            this.clearLocalCheckoutCart();
             this.$router
               .push({
                 name: "OrderConfirmed",
@@ -1289,17 +1569,9 @@ export default {
               })
               .catch(() => {});
           }
-          setTimeout(() => {
-            this.resetCoupon();
-            this.removeMultipleFromCart(this.getSelectedCartIds);
-          }, 2000);
-        } else {
-          this.snack({
-            message: res.data.message,
-            color: "red",
-          });
+        } finally {
+          this.checkoutLoading = false;
         }
-        this.checkoutLoading = false;
       }
     },
   },
@@ -1357,10 +1629,18 @@ export default {
           orderCode: this.$route.query.order_code,
           paymentMethod: this.$route.query.payment_method,
         });
+
+        if (this.$route.query.payment_error) {
+          this.snack({
+            message: this.$route.query.payment_error,
+            color: "red",
+          });
+        }
       }
     }
     this.rechargeWallet(this.$route.query.wallet_payment);
     this.fetchCartProducts();
+    this.restoreTransferState();
 
     if (!this.isAuthenticated && this.countries.length === 0) {
       this.fetchCountries().catch((error) => {
@@ -1522,6 +1802,69 @@ export default {
 .checkout-input:focus {
   border-color: #921b12;
   box-shadow: 0 0 0 3px rgba(146, 27, 18, 0.08);
+}
+
+.checkout-transfer-note,
+.checkout-transfer-panel {
+  border: 1px solid #e4d8c8;
+  background: rgba(255, 251, 245, 0.8);
+  padding: 18px;
+  display: grid;
+  gap: 16px;
+}
+
+.checkout-transfer-note strong,
+.checkout-transfer-panel__intro strong {
+  color: #2a231d;
+  font-size: 16px;
+}
+
+.checkout-transfer-note p,
+.checkout-transfer-panel__intro p,
+.checkout-transfer-panel__description {
+  margin: 0;
+  color: #5b5349;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.checkout-transfer-panel__meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.checkout-transfer-panel__meta div,
+.checkout-transfer-bank-card div {
+  display: grid;
+  gap: 4px;
+}
+
+.checkout-transfer-panel__meta span,
+.checkout-transfer-bank-card span {
+  font-size: 12px;
+  color: #7c746b;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.checkout-transfer-panel__meta strong,
+.checkout-transfer-bank-card strong {
+  font-size: 15px;
+  color: #1c1712;
+}
+
+.checkout-transfer-bank-list {
+  display: grid;
+  gap: 12px;
+}
+
+.checkout-transfer-bank-card {
+  border: 1px solid #eadfce;
+  background: #fffdfa;
+  padding: 14px;
+  display: grid;
+  gap: 12px;
 }
 
 .checkout-select-wrap {
@@ -1741,6 +2084,10 @@ export default {
 
   .checkout-form-grid,
   .checkout-shipping-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .checkout-transfer-panel__meta {
     grid-template-columns: 1fr;
   }
 

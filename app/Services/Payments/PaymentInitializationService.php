@@ -22,11 +22,13 @@ use App\Models\Currency;
 use App\Models\ManualPaymentMethod;
 use App\Models\Payment;
 use App\Models\User;
+use App\Services\Checkout\CheckoutCartFinalizer;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -36,6 +38,7 @@ class PaymentInitializationService
     public function __construct(
         private readonly PaymentGatewayManager $gatewayManager,
         private readonly PaymentCallbackService $callbackService,
+        private readonly CheckoutCartFinalizer $checkoutCartFinalizer,
     ) {
     }
 
@@ -45,10 +48,20 @@ class PaymentInitializationService
         $payment = $this->createPayment($gateway, $request, $user);
 
         if ($this->gatewayManager->isOffline($gateway)) {
-            return $this->callbackService->markOfflinePending($payment, $request->input('transactionId'), $request->file('receipt'));
+            $result = $this->callbackService->markOfflinePending($payment, $request->input('transactionId'), $request->file('receipt'));
+            $this->finalizeCheckoutCartIfNeeded($payment);
+
+            Log::info('Offline payment initialized via API.', [
+                'gateway' => $gateway,
+                'payment_type' => $payment->payment_type,
+                'order_code' => $payment->order_code,
+                'user_id' => $payment->user_id,
+            ]);
+
+            return $result;
         }
 
-        return [
+        $result = [
             'success' => true,
             'go_to_payment' => true,
             'payment_method' => $gateway,
@@ -58,6 +71,18 @@ class PaymentInitializationService
             'redirect_url' => url("/payment/{$gateway}/pay"),
             'message' => 'Payment initialization is ready.',
         ];
+
+        $this->finalizeCheckoutCartIfNeeded($payment);
+
+        Log::info('Online payment initialized via API.', [
+            'gateway' => $gateway,
+            'payment_type' => $payment->payment_type,
+            'order_code' => $payment->order_code,
+            'user_id' => $payment->user_id,
+            'redirect_url' => $result['redirect_url'],
+        ]);
+
+        return $result;
     }
 
     public function initializeWeb(string $gateway, Request $request): mixed
@@ -67,13 +92,30 @@ class PaymentInitializationService
 
         if ($this->gatewayManager->isOffline($gateway)) {
             $this->callbackService->markOfflinePending($payment, $request->input('transactionId'), $request->file('receipt'));
+            $this->finalizeCheckoutCartIfNeeded($payment);
+
+            Log::info('Offline payment initialized via web.', [
+                'gateway' => $gateway,
+                'payment_type' => $payment->payment_type,
+                'order_code' => $payment->order_code,
+                'user_id' => $payment->user_id,
+            ]);
 
             return redirect($this->buildRedirectUrl($payment, 'success', $gateway));
         }
 
         $this->storeLegacySession($payment, $request);
+        $response = $this->dispatchGatewayInitializer($gateway, $request);
+        $this->finalizeCheckoutCartIfNeeded($payment);
 
-        return $this->dispatchGatewayInitializer($gateway, $request);
+        Log::info('Online payment initialized via web.', [
+            'gateway' => $gateway,
+            'payment_type' => $payment->payment_type,
+            'order_code' => $payment->order_code,
+            'user_id' => $payment->user_id,
+        ]);
+
+        return $response;
     }
 
     private function createPayment(string $gateway, Request $request, ?User $user): Payment
@@ -125,7 +167,7 @@ class PaymentInitializationService
         }
 
         return DB::transaction(function () use ($gateway, $paymentType, $paymentMethod, $redirectTo, $amount, $orderCode, $combinedOrder, $user, $request) {
-            return Payment::query()->create([
+            $attributes = [
                 'user_id' => $user?->id,
                 'combined_order_id' => $combinedOrder?->id,
                 'gateway' => $gateway,
@@ -137,8 +179,43 @@ class PaymentInitializationService
                 'status' => $this->gatewayManager->isOffline($gateway) ? 'pending' : 'initiated',
                 'redirect_to' => $redirectTo,
                 'meta' => Arr::except($request->all(), ['card_number', 'cvv', 'receipt']),
-            ]);
+            ];
+
+            $existingPayment = $this->findReusablePayment(
+                $gateway,
+                $paymentType,
+                $orderCode,
+                $combinedOrder?->id,
+                $user?->id
+            );
+
+            if ($existingPayment) {
+                $existingPayment->fill($attributes);
+                $existingPayment->save();
+
+                return $existingPayment->fresh();
+            }
+
+            return Payment::query()->create($attributes);
         });
+    }
+
+    private function findReusablePayment(
+        string $gateway,
+        string $paymentType,
+        mixed $orderCode,
+        ?int $combinedOrderId,
+        ?int $userId
+    ): ?Payment {
+        return Payment::query()
+            ->where('gateway', $gateway)
+            ->where('payment_type', $paymentType)
+            ->when($orderCode, fn ($query) => $query->where('order_code', $orderCode))
+            ->when($combinedOrderId, fn ($query) => $query->where('combined_order_id', $combinedOrderId))
+            ->when($userId !== null, fn ($query) => $query->where('user_id', $userId), fn ($query) => $query->whereNull('user_id'))
+            ->whereIn('status', ['initiated', 'pending', 'processing'])
+            ->latest('id')
+            ->first();
     }
 
     private function resolveWebUser(Request $request): ?User
@@ -225,5 +302,14 @@ class PaymentInitializationService
         }
 
         return $payment->redirect_to . '?' . http_build_query($query);
+    }
+
+    private function finalizeCheckoutCartIfNeeded(Payment $payment): void
+    {
+        if ($payment->payment_type !== 'cart_payment') {
+            return;
+        }
+
+        $this->checkoutCartFinalizer->clearForPayment($payment);
     }
 }

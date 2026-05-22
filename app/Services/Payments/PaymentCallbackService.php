@@ -106,8 +106,8 @@ class PaymentCallbackService
                 $this->createPendingWalletRecharge($payment, $transactionId, $receipt);
             }
 
-            if ($payment->payment_type === 'repayment') {
-                $this->storePendingManualRepayment($payment, $transactionId, $receipt);
+            if (in_array($payment->payment_type, ['cart_payment', 'repayment'], true) && Str::contains($payment->gateway, 'offline_payment')) {
+                $this->storePendingManualOrderPayment($payment, $transactionId, $receipt);
             }
 
             $payment->update([
@@ -122,7 +122,9 @@ class PaymentCallbackService
             'payment_type' => $payment->payment_type,
             'order_code' => $payment->order_code,
             'grand_total' => (float) $payment->amount,
-            'message' => 'Your payment request has been submitted and is pending approval.',
+            'message' => $payment->payment_type === 'cart_payment'
+                ? 'Your transfer reference has been submitted and is awaiting verification.'
+                : 'Your payment request has been submitted and is pending approval.',
         ];
     }
 
@@ -235,7 +237,7 @@ class PaymentCallbackService
         $wallet->save();
     }
 
-    private function storePendingManualRepayment(Payment $payment, ?string $transactionId, ?UploadedFile $receipt): void
+    private function storePendingManualOrderPayment(Payment $payment, ?string $transactionId, ?UploadedFile $receipt): void
     {
         $combinedOrder = CombinedOrder::query()->with('orders')->where('code', $payment->order_code)->first();
 
@@ -246,6 +248,7 @@ class PaymentCallbackService
         $segments = explode('-', $payment->gateway);
         $offlinePaymentId = (int) end($segments);
         $method = ManualPaymentMethod::query()->find($offlinePaymentId);
+        $storedReceipt = $receipt?->store('uploads/offline_payments');
 
         foreach ($combinedOrder->orders as $order) {
             if (!Schema::hasColumn('orders', 'manual_payment') || !Schema::hasColumn('orders', 'manual_payment_data')) {
@@ -258,7 +261,9 @@ class PaymentCallbackService
                 'manual_payment_data' => json_encode([
                     'transactionId' => $transactionId,
                     'payment_method' => $method?->heading,
-                    'receipt' => $receipt?->store('uploads/offline_payments'),
+                    'receipt' => $storedReceipt,
+                    'reciept' => $storedReceipt,
+                    'status' => 'pending_verification',
                 ]),
             ]);
         }

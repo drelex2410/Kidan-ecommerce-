@@ -13,9 +13,11 @@ use App\Models\OrderDetail;
 use App\Models\State;
 use App\Models\User;
 use App\Models\Wallet;
+use App\Http\Resources\ManualPaymentResource;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
@@ -24,7 +26,8 @@ class OrderService
     public function __construct(
         private readonly CartService $cartService,
         private readonly CouponService $couponService,
-        private readonly ShippingService $shippingService
+        private readonly ShippingService $shippingService,
+        private readonly CheckoutCartFinalizer $checkoutCartFinalizer,
     ) {
     }
 
@@ -81,7 +84,7 @@ class OrderService
         $grouped = $cartItems->groupBy(fn ($item) => $item->product->shop_id);
         $couponMap = $this->couponService->resolveCheckoutCoupons($user, $tempUserId, $payload['coupon_codes'] ?? [], $cartItems);
 
-        return DB::transaction(function () use ($user, $payload, $receipt, $cartItems, $grouped, $couponMap, $shippingAddress, $billingAddress, $shippingCostPerShop, $typeOfDelivery, $isGuestCheckout) {
+        return DB::transaction(function () use ($user, $payload, $receipt, $cartItems, $grouped, $couponMap, $shippingAddress, $billingAddress, $shippingCostPerShop, $typeOfDelivery, $isGuestCheckout, $tempUserId) {
             $combinedOrder = new CombinedOrder();
             $combinedOrder->user_id = $user?->id;
             $combinedOrder->guest_id = $isGuestCheckout ? random_int(100000, 999999) : null;
@@ -174,15 +177,38 @@ class OrderService
                 $this->finalizeWalletPayment($user, $combinedOrder, $payload['payment_type']);
             }
 
-            DB::table('carts')->whereIn('id', $cartItems->pluck('id'))->delete();
+            if ($this->shouldClearCartAfterOrderPlacement($payload['payment_type'])) {
+                $this->checkoutCartFinalizer->clearByIds(
+                    $user?->id ? (int) $user->id : null,
+                    $tempUserId,
+                    $cartItems->pluck('id')->all()
+                );
+            }
+
+            $manualPaymentMethod = $this->manualPaymentMethodPayload($payload['payment_type']);
+            $goToPayment = $manualPaymentMethod === null
+                && !$this->isDirectSettlementPayment($payload['payment_type']);
+
+            Log::info('Checkout order created.', [
+                'combined_order_code' => $combinedOrder->code,
+                'user_id' => $user?->id,
+                'payment_type' => $payload['payment_type'],
+                'go_to_payment' => $goToPayment,
+                'manual_transfer_required' => $manualPaymentMethod !== null,
+                'cart_item_ids' => $cartItems->pluck('id')->all(),
+            ]);
 
             return [
                 'success' => true,
-                'go_to_payment' => !$this->isDirectSettlementPayment($payload['payment_type']),
+                'go_to_payment' => $goToPayment,
                 'grand_total' => round($grandTotal, 2),
                 'payment_method' => $payload['payment_type'],
-                'message' => 'Your order has been placed successfully',
+                'message' => $manualPaymentMethod
+                    ? 'Your order has been created. Complete the transfer details to submit payment for verification.'
+                    : 'Your order has been placed successfully',
                 'order_code' => $combinedOrder->code,
+                'manual_transfer_required' => $manualPaymentMethod !== null,
+                'manual_payment_method' => $manualPaymentMethod,
             ];
         });
     }
@@ -245,7 +271,12 @@ class OrderService
 
     private function isDirectSettlementPayment(string $paymentType): bool
     {
-        return in_array($paymentType, ['cash_on_delivery', 'wallet'], true) || Str::contains($paymentType, 'offline_payment');
+        return in_array($paymentType, ['cash_on_delivery', 'wallet'], true);
+    }
+
+    private function shouldClearCartAfterOrderPlacement(string $paymentType): bool
+    {
+        return in_array($paymentType, ['cash_on_delivery', 'wallet'], true);
     }
 
     private function finalizeWalletPayment(User $user, CombinedOrder $combinedOrder, string $paymentType): void
@@ -276,6 +307,10 @@ class OrderService
             return;
         }
 
+        if (blank($payload['transactionId'] ?? null) && !$receipt) {
+            return;
+        }
+
         if (!Schema::hasColumn('orders', 'manual_payment') || !Schema::hasColumn('orders', 'manual_payment_data')) {
             return;
         }
@@ -286,15 +321,36 @@ class OrderService
             ? ManualPaymentMethod::query()->find($offlinePaymentId)
             : null;
 
+        $storedReceipt = $receipt?->store('uploads/offline_payments');
+
         $manualPaymentData = [
             'transactionId' => $payload['transactionId'] ?? null,
             'payment_method' => $method?->heading,
-            'receipt' => $receipt?->store('uploads/offline_payments'),
+            'receipt' => $storedReceipt,
+            'reciept' => $storedReceipt,
+            'status' => 'pending_verification',
         ];
 
         $order->update([
             'manual_payment' => 1,
             'manual_payment_data' => json_encode($manualPaymentData),
         ]);
+    }
+
+    private function manualPaymentMethodPayload(string $paymentType): ?array
+    {
+        if (!Str::contains($paymentType, 'offline_payment') || !Schema::hasTable('manual_payment_methods')) {
+            return null;
+        }
+
+        $segments = explode('-', $paymentType);
+        $offlinePaymentId = (int) end($segments);
+        $method = ManualPaymentMethod::query()->find($offlinePaymentId);
+
+        if (!$method) {
+            return null;
+        }
+
+        return (new ManualPaymentResource($method))->resolve();
     }
 }

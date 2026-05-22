@@ -405,7 +405,7 @@ if (!function_exists('filter_product_variations')) {
             $data['code'] = ($variation->code == null) ? $variation->code : array_filter(explode("/", $variation->code));
             $data['img'] = $variation->img;
             $data['image'] = api_asset($variation->img);
-            $data['price'] = variation_discounted_price($product, $variation);
+            $data['price'] = variation_discounted_price($product, $variation, false);
             $data['stock'] = $variation->stock;
             $data['current_stock'] = $variation->current_stock;
 

@@ -18,17 +18,25 @@
       <div class="checkout-complete__intro">
         <span class="checkout-complete__intro-bar"></span>
         <p>
-          <strong>Hello {{ customerFirstName }},</strong> Your order will be
-          processed within 24 hours on regular working days. Once your package
-          has been shipped, you'll receive an email notification with all the
-          details you need.
+          <template v-if="isPendingTransferOrder">
+            <strong>Hello {{ customerFirstName }},</strong> your order has been
+            received and your transfer reference is now awaiting verification.
+            We’ll confirm the payment once our team reviews it, then continue
+            with order processing.
+          </template>
+          <template v-else>
+            <strong>Hello {{ customerFirstName }},</strong> Your order will be
+            processed within 24 hours on regular working days. Once your package
+            has been shipped, you'll receive an email notification with all the
+            details you need.
+          </template>
         </p>
       </div>
 
       <div class="checkout-complete__section">
         <div class="checkout-complete__section-title">Order Details</div>
         <div class="checkout-complete__card">
-          <h2>Thank you for your purchase</h2>
+          <h2>{{ isPendingTransferOrder ? "Your transfer is awaiting verification" : "Thank you for your purchase" }}</h2>
 
           <div class="checkout-complete__meta-grid">
             <div class="checkout-complete__meta">
@@ -116,10 +124,25 @@ export default {
     },
     paymentMethodLabel() {
       const paymentType = this.order?.orders?.[0]?.payment_type || "";
+      const manualPaymentMethod = this.order?.orders?.[0]?.manual_payment_data?.payment_method;
+
+      if (manualPaymentMethod) {
+        return manualPaymentMethod;
+      }
 
       return paymentType
         .replaceAll("_", " ")
         .replace(/\b\w/g, (char) => char.toUpperCase());
+    },
+    isPendingTransferOrder() {
+      const firstOrder = this.order?.orders?.[0];
+
+      return Boolean(
+        this.$route.query.pendingTransfer ||
+          (firstOrder?.manual_payment &&
+            String(firstOrder?.payment_type || "").includes("offline_payment") &&
+            firstOrder?.payment_status !== "paid")
+      );
     },
     fullAddress() {
       const addressParts = [

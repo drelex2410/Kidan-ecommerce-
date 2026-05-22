@@ -177,8 +177,8 @@ class BlogController extends Controller
                 'slug' => $product->slug,
                 'image' => api_asset($product->thumbnail_img),
                 'description' => str($product->getTranslation('description'))->stripTags()->squish()->limit(70)->toString(),
-                'price' => (double) product_discounted_base_price($product),
-                'formatted_price' => 'NGN ' . number_format((double) product_discounted_base_price($product)),
+                'price' => (double) product_discounted_base_price($product, false),
+                'formatted_price' => 'NGN ' . number_format((double) product_discounted_base_price($product, false)),
             ];
         })->values()->all();
     }

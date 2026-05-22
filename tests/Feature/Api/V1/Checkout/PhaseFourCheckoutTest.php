@@ -379,6 +379,58 @@ class PhaseFourCheckoutTest extends TestCase
         $this->assertDatabaseMissing('carts', ['id' => $cartId]);
     }
 
+    public function test_order_store_with_transfer_returns_manual_transfer_contract_and_keeps_cart_until_reference_submission(): void
+    {
+        $user = $this->createUser(['email_verified_at' => now()]);
+        [$variation] = $this->seedCatalogForCheckout();
+        $cartId = $this->seedCartLine(['user_id' => $user->id, 'temp_user_id' => null, 'product_variation_id' => $variation->id]);
+        $shippingAddressId = $this->seedAddress($user->id, 1);
+        $billingAddressId = $this->seedAddress($user->id, 1, ['default_billing' => 1]);
+
+        DB::table('manual_payment_methods')->insert([
+            'id' => 1,
+            'type' => 'bank_payment',
+            'heading' => 'Bank Transfer',
+            'description' => 'Transfer to the account below.',
+            'bank_info' => json_encode([
+                [
+                    'bank_name' => 'Kidan Bank',
+                    'account_name' => 'Kidan Store',
+                    'account_number' => '1234567890',
+                    'routing_number' => '001122',
+                ],
+            ]),
+            'photo' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->withToken($user->createToken('frontend-web')->plainTextToken)
+            ->postJson('/api/v1/checkout/order/store', [
+                'shipping_address_id' => $shippingAddressId,
+                'billing_address_id' => $billingAddressId,
+                'payment_type' => 'offline_payment-1',
+                'delivery_type' => 'standard',
+                'type_of_delivery' => 'home_delivery',
+                'pickup_point_id' => null,
+                'cart_item_ids' => [$cartId],
+                'coupon_codes' => [],
+            ]);
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('go_to_payment', false)
+            ->assertJsonPath('manual_transfer_required', true)
+            ->assertJsonPath('manual_payment_method.code', 'offline_payment-1')
+            ->assertJsonPath('manual_payment_method.heading', 'Bank Transfer');
+
+        $this->assertDatabaseHas('orders', [
+            'payment_type' => 'offline_payment-1',
+            'manual_payment' => 0,
+        ]);
+        $this->assertDatabaseHas('carts', ['id' => $cartId]);
+    }
+
     public function test_order_store_rejects_empty_cart(): void
     {
         $user = $this->createUser();
@@ -420,6 +472,7 @@ class PhaseFourCheckoutTest extends TestCase
             'orders',
             'combined_orders',
             'carts',
+            'manual_payment_methods',
             'product_variation_combinations',
             'product_variations',
             'attribute_value_translations',
@@ -712,12 +765,23 @@ class PhaseFourCheckoutTest extends TestCase
             $table->timestamps();
         });
 
+        Schema::create('manual_payment_methods', function (Blueprint $table): void {
+            $table->id();
+            $table->string('type')->nullable();
+            $table->string('heading');
+            $table->text('description')->nullable();
+            $table->text('bank_info')->nullable();
+            $table->string('photo')->nullable();
+            $table->timestamps();
+        });
+
         Schema::create('coupon_usages', function (Blueprint $table): void {
             $table->id();
             $table->unsignedBigInteger('user_id');
             $table->unsignedBigInteger('coupon_id');
             $table->timestamps();
         });
+
     }
 
     private function seedPricingSettings(): void

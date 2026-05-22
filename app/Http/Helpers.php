@@ -350,7 +350,18 @@ if (!function_exists('get_system_default_currency')) {
     function get_system_default_currency()
     {
         return Cache::remember('system_default_currency', 86400, function () {
-            return Currency::findOrFail(get_setting('system_default_currency'));
+            $configuredCurrencyId = get_setting('system_default_currency');
+
+            if (!empty($configuredCurrencyId)) {
+                $configuredCurrency = Currency::query()->find($configuredCurrencyId);
+
+                if ($configuredCurrency) {
+                    return $configuredCurrency;
+                }
+            }
+
+            return Currency::query()->where('status', 1)->orderBy('id')->first()
+                ?: Currency::query()->orderBy('id')->first();
         });
     }
 }
@@ -361,15 +372,21 @@ if (!function_exists('convert_price')) {
     function convert_price($price)
     {
         $selectedCurrencyCode = Session::get('currency_code');
+        $defaultCurrency = get_system_default_currency();
 
-        if ($selectedCurrencyCode && ($selectedCurrencyCode != get_system_default_currency()->code)) {
+        if (!$defaultCurrency) {
+            return floatval($price);
+        }
+
+        if ($selectedCurrencyCode && ($selectedCurrencyCode != $defaultCurrency->code)) {
             $selectedCurrency = Cache::remember("selected_currency_rate_{$selectedCurrencyCode}", 86400, function () use ($selectedCurrencyCode) {
                 return Currency::query()->where('code', $selectedCurrencyCode)->where('status', 1)->first(['exchange_rate']);
             });
 
             $selectedExchangeRate = (float) ($selectedCurrency?->exchange_rate ?? Session::get('currency_exchange_rate') ?? 1);
 
-            $price = floatval($price) / floatval(get_system_default_currency()->exchange_rate);
+            $defaultExchangeRate = (float) ($defaultCurrency->exchange_rate ?: 1);
+            $price = floatval($price) / $defaultExchangeRate;
             $price = floatval($price) * $selectedExchangeRate;
         }
         return $price;

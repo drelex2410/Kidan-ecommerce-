@@ -117,9 +117,9 @@
 				<div class="alert alert-info mb-4">
 					{{ translate('These three blocks map directly to the live homepage banner components. The saved setting keys stay exactly the same behind the scenes, so existing homepage content keeps working.') }}
 				</div>
-				<form action="{{ route('settings.update') }}" method="POST" enctype="multipart/form-data">
-					@csrf
-					<div class="border rounded p-4 mb-4">
+					<form action="{{ route('settings.update') }}" method="POST" enctype="multipart/form-data">
+						@csrf
+						<div class="border rounded p-4 mb-4">
 						<div class="row gutters-10">
 							<div class="col-lg-3">
 								<h6 class="mb-2">{{ translate('Banner 1') }}</h6>
@@ -190,12 +190,18 @@
 										data-target=".home-banner-1-target">
 										{{ translate('Add Banner 1 Slide') }}
 									</button>
+									<button type="submit" class="btn btn-primary btn-sm ml-2">
+										{{ translate('Update Banner 1') }}
+									</button>
 								</div>
 							</div>
 						</div>
-					</div>
+						</div>
+					</form>
 
-					<div class="border rounded p-4 mb-4">
+					<form action="{{ route('settings.update') }}" method="POST" enctype="multipart/form-data">
+						@csrf
+						<div class="border rounded p-4 mb-4">
 						<div class="row gutters-10">
 							<div class="col-lg-3">
 								<h6 class="mb-2">{{ translate('Banner 2') }}</h6>
@@ -248,11 +254,19 @@
 										</div>
 									</div>
 								</div>
+								<div class="text-right mt-4">
+									<button type="submit" class="btn btn-primary btn-sm">
+										{{ translate('Update Banner 2') }}
+									</button>
+								</div>
 							</div>
 						</div>
-					</div>
+						</div>
+					</form>
 
-					<div class="border rounded p-4">
+					<form action="{{ route('settings.update') }}" method="POST" enctype="multipart/form-data">
+						@csrf
+						<div class="border rounded p-4">
 						<div class="row gutters-10">
 							<div class="col-lg-3">
 								<h6 class="mb-2">{{ translate('Banner 3') }}</h6>
@@ -348,14 +362,15 @@
 										</div>
 									</div>
 								</div>
+								<div class="text-right mt-4">
+									<button type="submit" class="btn btn-primary btn-sm">
+										{{ translate('Update Banner 3') }}
+									</button>
+								</div>
 							</div>
 						</div>
-					</div>
-
-					<div class="text-right mt-4">
-						<button type="submit" class="btn btn-primary">{{ translate('Update') }}</button>
-					</div>
-				</form>
+						</div>
+					</form>
 			</div>
 		</div>
 	</div>

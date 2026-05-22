@@ -832,6 +832,33 @@ $.fn.toggleAttr = function (attr, attr1, attr2) {
                     });
                 }
             });
+        },
+        syncSelectedFilesBeforeSubmit: function () {
+            $(document).on("submit", "form", function () {
+                $(this).find('[data-toggle="aizuploader"]').each(function () {
+                    var $inputGroup = $(this);
+                    var $selectedFiles = $inputGroup.find(".selected-files");
+                    var $preview = $inputGroup.next(".file-preview");
+
+                    if ($selectedFiles.length === 0 || $preview.length === 0) {
+                        return;
+                    }
+
+                    var ids = $preview
+                        .find(".file-preview-item")
+                        .map(function () {
+                            return $(this).data("id");
+                        })
+                        .get()
+                        .filter(function (id) {
+                            return id !== undefined && id !== null && id !== "";
+                        });
+
+                    if (ids.length > 0) {
+                        $selectedFiles.val(ids.join(","));
+                    }
+                });
+            });
         }
     };
     AIZ.plugins = {
@@ -1905,6 +1932,7 @@ $.fn.toggleAttr = function (attr, attr1, attr2) {
     AIZ.uploader.initForInput();
     AIZ.uploader.removeAttachment();
     AIZ.uploader.previewGenerate();
+    AIZ.uploader.syncSelectedFilesBeforeSubmit();
 
     // $(document).ajaxComplete(function(){
     //     AIZ.plugins.bootstrapSelect('refresh');

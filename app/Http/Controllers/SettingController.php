@@ -10,6 +10,7 @@ use App\Models\User;
 use Artisan;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class SettingController extends Controller
@@ -272,26 +273,7 @@ class SettingController extends Controller
             if ($type == 'timezone') {
                 $this->overWriteEnvFile('APP_TIMEZONE', $request[$type]);
             } else {
-                $value = $request[$type];
-
-                $settings = Setting::where('type', $type)->first();
-                if ($settings != null) {
-                    if (gettype($value) == 'array') {
-                        $settings->value = json_encode($value);
-                    } else {
-                        $settings->value = $value;
-                    }
-                } else {
-                    $settings = new Setting;
-                    $settings->type = $type;
-                    if (gettype($value) == 'array') {
-                        $settings->value = json_encode($value);
-                    } else {
-                        $settings->value = $value;
-                    }
-                }
-
-                $settings->save();
+                $this->persistSettingValue($type, $request->input($type));
             }
         }
 
@@ -318,6 +300,36 @@ class SettingController extends Controller
 
         flash(translate("Settings updated successfully"))->success();
         return back();
+    }
+
+    protected function persistSettingValue(string $type, $value): void
+    {
+        $storedValue = is_array($value) ? json_encode($value) : $value;
+        $settings = Setting::query()
+            ->where('type', $type)
+            ->orderBy('id')
+            ->get();
+
+        if ($settings->isEmpty()) {
+            $setting = new Setting;
+            $setting->type = $type;
+            $setting->value = $storedValue;
+            $setting->save();
+            return;
+        }
+
+        if ($settings->count() > 1) {
+            Log::warning('Duplicate settings rows detected while persisting setting', [
+                'type' => $type,
+                'duplicate_count' => $settings->count(),
+                'setting_ids' => $settings->pluck('id')->all(),
+            ]);
+        }
+
+        foreach ($settings as $setting) {
+            $setting->value = $storedValue;
+            $setting->save();
+        }
     }
 
     public function updateActivationSettings(Request $request)

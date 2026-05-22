@@ -807,13 +807,18 @@ if (!function_exists('get_setting')) {
             }
 
             $settings = Cache::remember('settings', 86400, function () {
-                return Setting::all();
+                // Keep the newest row for each type so duplicate legacy rows
+                // can't cause older values to "win" unpredictably.
+                return Setting::query()
+                    ->orderBy('id')
+                    ->get()
+                    ->keyBy('type');
             });
         } catch (\Throwable $exception) {
             return $default;
         }
 
-        $setting = $settings->where('type', $key)->first();
+        $setting = $settings->get($key);
 
         return $setting == null ? $default : $setting->value;
     }
@@ -848,7 +853,15 @@ if (!function_exists('addon_is_activated')) {
 if (!function_exists('cache_clear')) {
     function cache_clear()
     {
-        Artisan::call('optimize:clear');
+        try {
+            Cache::forget('settings');
+        } catch (\Throwable $exception) {
+        }
+
+        try {
+            Artisan::call('optimize:clear');
+        } catch (\Throwable $exception) {
+        }
     }
 }
 if (!function_exists('set_cookie')) {

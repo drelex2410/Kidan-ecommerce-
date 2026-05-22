@@ -273,6 +273,14 @@ class SettingController extends Controller
             if ($type == 'timezone') {
                 $this->overWriteEnvFile('APP_TIMEZONE', $request[$type]);
             } else {
+                if (! $request->exists($type)) {
+                    Log::warning('Skipping settings update because request field is missing', [
+                        'type' => $type,
+                        'route' => optional($request->route())->getName(),
+                    ]);
+                    continue;
+                }
+
                 $this->persistSettingValue($type, $request->input($type));
             }
         }

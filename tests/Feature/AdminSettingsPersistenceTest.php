@@ -64,4 +64,48 @@ class AdminSettingsPersistenceTest extends TestCase
         $this->assertSame(['999', '999'], $values);
         $this->assertSame('999', get_setting($type));
     }
+
+    public function test_get_setting_prefers_latest_non_empty_duplicate_value(): void
+    {
+        $type = 'test_banner_setting_' . Str::lower(Str::random(8));
+        $this->settingTypes[] = $type;
+
+        Setting::query()->create([
+            'type' => $type,
+            'value' => '101',
+        ]);
+
+        Setting::query()->create([
+            'type' => $type,
+            'value' => '',
+        ]);
+
+        Cache::forget('settings');
+
+        $this->assertSame('101', get_setting($type));
+    }
+
+    public function test_settings_update_does_not_clear_existing_value_when_request_field_is_missing(): void
+    {
+        $type = 'test_banner_setting_' . Str::lower(Str::random(8));
+        $this->settingTypes[] = $type;
+
+        Setting::query()->create([
+            'type' => $type,
+            'value' => '515',
+        ]);
+
+        Cache::forget('settings');
+
+        $this->actingAs($this->admin)
+            ->post(route('settings.update'), [
+                'types' => [$type],
+            ])
+            ->assertRedirect();
+
+        Cache::forget('settings');
+
+        $this->assertSame('515', get_setting($type));
+        $this->assertSame(['515'], Setting::query()->where('type', $type)->pluck('value')->all());
+    }
 }

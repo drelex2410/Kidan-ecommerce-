@@ -807,12 +807,19 @@ if (!function_exists('get_setting')) {
             }
 
             $settings = Cache::remember('settings', 86400, function () {
-                // Keep the newest row for each type so duplicate legacy rows
-                // can't cause older values to "win" unpredictably.
                 return Setting::query()
+                    ->orderBy('type')
+                    ->orderBy('updated_at')
                     ->orderBy('id')
                     ->get()
-                    ->keyBy('type');
+                    ->groupBy('type')
+                    ->map(function ($items) {
+                        $nonEmpty = $items->filter(function ($setting) {
+                            return !is_null($setting->value) && $setting->value !== '';
+                        });
+
+                        return ($nonEmpty->last() ?: $items->last());
+                    });
             });
         } catch (\Throwable $exception) {
             return $default;

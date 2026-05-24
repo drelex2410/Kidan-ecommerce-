@@ -11,6 +11,7 @@
 	$bannerTwoLinks = json_decode(get_setting('home_banner_2_links'), true) ?: [];
 	$bannerThreeImages = json_decode(get_setting('home_banner_4_images'), true) ?: [];
 	$bannerThreeLinks = json_decode(get_setting('home_banner_4_links'), true) ?: [];
+	$activeSettingsGroup = old('settings_group');
 @endphp
 <h6 class="fw-600">{{ translate('Home Page Settings') }}</h6>
 <div class="accordion" id="accordionExample">
@@ -27,6 +28,16 @@
 				</div>
 				<form action="{{ route('settings.update') }}" method="POST" enctype="multipart/form-data">
 					@csrf
+					<input type="hidden" name="settings_group" value="hero_slider">
+					@if ($errors->any() && $activeSettingsGroup === 'hero_slider')
+						<div class="alert alert-danger mb-4">
+							<ul class="mb-0 pl-3">
+								@foreach ($errors->all() as $error)
+									<li>{{ $error }}</li>
+								@endforeach
+							</ul>
+						</div>
+					@endif
 					<div class="form-group row gutters-10">
 						<div class="col-lg-3">
 							<label class="from-label d-block">{{translate('Hero Slide Image & Link')}}</label>
@@ -119,6 +130,16 @@
 				</div>
 					<form action="{{ route('settings.update') }}" method="POST" enctype="multipart/form-data">
 						@csrf
+						<input type="hidden" name="settings_group" value="home_banner_1">
+						@if ($errors->any() && $activeSettingsGroup === 'home_banner_1')
+							<div class="alert alert-danger mb-4">
+								<ul class="mb-0 pl-3">
+									@foreach ($errors->all() as $error)
+										<li>{{ $error }}</li>
+									@endforeach
+								</ul>
+							</div>
+						@endif
 						<div class="border rounded p-4 mb-4">
 						<div class="row gutters-10">
 							<div class="col-lg-3">
@@ -201,6 +222,16 @@
 
 					<form action="{{ route('settings.update') }}" method="POST" enctype="multipart/form-data">
 						@csrf
+						<input type="hidden" name="settings_group" value="home_banner_2">
+						@if ($errors->any() && $activeSettingsGroup === 'home_banner_2')
+							<div class="alert alert-danger mb-4">
+								<ul class="mb-0 pl-3">
+									@foreach ($errors->all() as $error)
+										<li>{{ $error }}</li>
+									@endforeach
+								</ul>
+							</div>
+						@endif
 						<div class="border rounded p-4 mb-4">
 						<div class="row gutters-10">
 							<div class="col-lg-3">
@@ -266,6 +297,16 @@
 
 					<form action="{{ route('settings.update') }}" method="POST" enctype="multipart/form-data">
 						@csrf
+						<input type="hidden" name="settings_group" value="home_banner_4">
+						@if ($errors->any() && $activeSettingsGroup === 'home_banner_4')
+							<div class="alert alert-danger mb-4">
+								<ul class="mb-0 pl-3">
+									@foreach ($errors->all() as $error)
+										<li>{{ $error }}</li>
+									@endforeach
+								</ul>
+							</div>
+						@endif
 						<div class="border rounded p-4">
 						<div class="row gutters-10">
 							<div class="col-lg-3">

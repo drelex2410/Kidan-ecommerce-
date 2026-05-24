@@ -5,7 +5,7 @@
         </div>
         <div v-else class="hero-slide">
             <div class="hero-image-wrapper">
-                <img :src="banners[0]?.img" alt="Background Banner" @error="imageFallback($event)" class="hero-image" />
+                <img :src="backgroundBanner?.img || fallbackImage" alt="Background Banner" @error="imageFallback($event)" class="hero-image" />
                 <div class="hero-overlay"></div>
             </div>
             <div class="hero-content">
@@ -14,11 +14,11 @@
                     <h2 class="hero-subtitle">{{ banners[0]?.subtitle2 || 'room & Own it.' }}</h2>
                 </div>
                 <div class="hero-center-image">
-                    <img :src="banners[1]?.img" :alt="banners[1]?.title" @error="imageFallback($event)" class="center-product-img" />
+                    <img :src="productBanner?.img || fallbackImage" :alt="productBanner?.title || 'Featured product'" @error="imageFallback($event)" class="center-product-img" />
                 </div>
                 <div class="hero-text-right">
-                    <h1 class="hero-title">{{ banners[1]?.title }}</h1>
-                    <router-link :to="banners[1]?.link || '/'" class="hero-cta">
+                    <h1 class="hero-title">{{ productBanner?.title || '' }}</h1>
+                    <router-link :to="productBanner?.link || '/'" class="hero-cta">
                         <span>DISCOVER MORE</span>
                     </router-link>
                 </div>
@@ -32,11 +32,20 @@ export default {
     data: () => ({
         loading: true,
         banners: [],
+        fallbackImage: "/assets/img/placeholder.png",
     }),
+    computed: {
+        backgroundBanner() {
+            return this.banners.find((banner) => banner.slot === "background") || null;
+        },
+        productBanner() {
+            return this.banners.find((banner) => banner.slot === "product") || null;
+        },
+    },
     async created() {
         const res = await this.call_api("get", "setting/home/banner_section_two");
         if (res.data.success) {
-            this.banners = res.data.data;
+            this.banners = Array.isArray(res.data.data) ? res.data.data : [];
             this.loading = false;
         }
     }

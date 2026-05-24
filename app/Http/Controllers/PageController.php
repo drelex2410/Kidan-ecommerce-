@@ -164,6 +164,12 @@ class PageController extends Controller
     public function destroy($id)
     {
         $page = Page::findOrFail($id);
+
+        if (in_array($page->slug, ['about-us', 'journal'], true)) {
+            flash(translate('This page is protected and cannot be deleted.'))->warning();
+            return redirect()->back();
+        }
+
         foreach ($page->page_translations as $key => $page_translation) {
             $page_translation->delete();
         }

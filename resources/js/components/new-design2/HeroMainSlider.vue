@@ -12,7 +12,7 @@
             :pagination="{ clickable: true }" :navigation="true" :loop="true" :modules="modules"
             class="mySwiper main-swiper">
             <swiper-slide v-for="(slider, i) in sliders.one" :key="i">
-              <router-link :to="slider.link" class="slide-link">
+              <router-link :to="slider.link || '/'" class="slide-link">
                 <div class="slide-content main-slide">
                   <div class="slide-overlay"></div>
                   <img :src="slider.img" alt="Hero Slider" />

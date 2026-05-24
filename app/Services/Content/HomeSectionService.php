@@ -30,9 +30,17 @@ class HomeSectionService
             'product_section_five' => $this->productSectionFive(),
             'product_section_six' => $this->productSectionSix(),
             'banner_section_one' => $this->bannerSection('home_banner_1_images', 'home_banner_1_links'),
-            'banner_section_two' => $this->bannerSection('home_banner_2_images', 'home_banner_2_links'),
+            'banner_section_two' => $this->fixedBannerSection('home_banner_2_images', 'home_banner_2_links', [
+                ['slot' => 'background', 'default_link' => null, 'clickable' => false],
+                ['slot' => 'product', 'default_link' => '/', 'clickable' => true],
+            ]),
             'banner_section_three' => $this->bannerSection('home_banner_3_images', 'home_banner_3_links'),
-            'banner_section_four' => $this->bannerSection('home_banner_4_images', 'home_banner_4_links'),
+            'banner_section_four' => $this->fixedBannerSection('home_banner_4_images', 'home_banner_4_links', [
+                ['slot' => 'slide_1', 'default_link' => '/', 'clickable' => true],
+                ['slot' => 'slide_2', 'default_link' => '/', 'clickable' => true],
+                ['slot' => 'slide_3', 'default_link' => '/', 'clickable' => true],
+                ['slot' => 'newsletter', 'default_link' => null, 'clickable' => false],
+            ]),
             'home_about_text' => $this->homeAboutText(),
             'shop_section_one' => $this->shopSection(1),
             'shop_section_two' => $this->shopSection(2),
@@ -185,9 +193,30 @@ class HomeSectionService
         return collect($imageIds)->map(function ($imageId, $index) use ($links) {
             return [
                 'img' => $this->contentMedia->asset($imageId),
-                'link' => $links[$index] ?? null,
+                'link' => $this->normalizeBannerLink($links[$index] ?? null),
             ];
         })->filter(fn ($banner) => $banner['img'] !== null)->values()->all();
+    }
+
+    private function fixedBannerSection(string $imagesSettingKey, string $linksSettingKey, array $slots): array
+    {
+        $imageIds = $this->decodeSettingArray(get_setting($imagesSettingKey));
+        $links = $this->decodeSettingArray(get_setting($linksSettingKey));
+
+        return collect($slots)->map(function (array $slot, int $index) use ($imageIds, $links) {
+            $imageId = $imageIds[$index] ?? null;
+            $link = $links[$index] ?? null;
+            $defaultLink = array_key_exists('default_link', $slot) ? $slot['default_link'] : '/';
+            $isClickable = (bool) ($slot['clickable'] ?? true);
+
+            return [
+                'slot' => $slot['slot'],
+                'img' => $this->contentMedia->asset($imageId),
+                'link' => $isClickable ? $this->normalizeBannerLink($link, $defaultLink) : null,
+                'is_clickable' => $isClickable,
+                'missing_image' => empty($imageId),
+            ];
+        })->values()->all();
     }
 
     private function manualProducts(string $settingKey)
@@ -219,5 +248,20 @@ class HomeSectionService
         $decoded = $value ? json_decode($value, true) : null;
 
         return is_array($decoded) ? array_values($decoded) : [];
+    }
+
+    private function normalizeBannerLink(mixed $value, ?string $fallback = '/'): ?string
+    {
+        if (!is_string($value)) {
+            return $fallback;
+        }
+
+        $normalized = trim($value);
+
+        if ($normalized === '') {
+            return $fallback;
+        }
+
+        return $normalized;
     }
 }

@@ -150,6 +150,7 @@
 
     <CategoryBar 
       :categories="categories" 
+      :menu-items="data?.header_menu || {}"
       :is-scrolled="isScrolled || showCategories"
       @mouseenter="showCategories = true"
       @mouseleave="startHideTimer"

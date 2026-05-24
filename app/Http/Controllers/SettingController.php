@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Contracts\ApplicationBootstrap;
 use App\Http\Services\AdminShopService;
 use App\Models\Setting;
+use App\Models\Upload;
 use App\Services\Payments\AlatPay\AlatPayConfig;
 use App\Models\User;
 use Artisan;
@@ -12,6 +13,7 @@ use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class SettingController extends Controller
 {
@@ -269,6 +271,8 @@ class SettingController extends Controller
 
     public function update(Request $request)
     {
+        $this->validateHomepageBannerSettings($request);
+
         foreach ($request->types as $key => $type) {
             if ($type == 'timezone') {
                 $this->overWriteEnvFile('APP_TIMEZONE', $request[$type]);
@@ -360,12 +364,7 @@ class SettingController extends Controller
             }
         }
 
-        $merged = $value;
-        foreach ($merged as $index => $submittedValue) {
-            if (($submittedValue === null || $submittedValue === '') && array_key_exists($index, $existing)) {
-                $merged[$index] = $existing[$index];
-            }
-        }
+        $merged = $this->mergeSparseArrayEntries($value, $existing);
 
         return json_encode($merged);
     }
@@ -378,6 +377,252 @@ class SettingController extends Controller
             'home_banner_4_images',
             'home_banner_4_links',
         ], true);
+    }
+
+    protected function validateHomepageBannerSettings(Request $request): void
+    {
+        $group = (string) $request->input('settings_group', '');
+
+        if ($group === '') {
+            return;
+        }
+
+        $messages = match ($group) {
+            'hero_slider' => $this->validateDynamicBannerGroup(
+                imagesType: 'home_slider_1_images',
+                linksType: 'home_slider_1_links',
+                imageLabel: 'Hero slider',
+                request: $request,
+                requireAtLeastOneImage: true,
+            ),
+            'home_banner_1' => $this->validateDynamicBannerGroup(
+                imagesType: 'home_banner_1_images',
+                linksType: 'home_banner_1_links',
+                imageLabel: 'Banner 1',
+                request: $request,
+                requireAtLeastOneImage: true,
+            ),
+            'home_banner_2' => $this->validateFixedBannerGroup(
+                imagesType: 'home_banner_2_images',
+                linksType: 'home_banner_2_links',
+                request: $request,
+                requiredSlots: [
+                    0 => 'Banner 2 background image',
+                    1 => 'Banner 2 product image',
+                ],
+                requiredLinks: [
+                    1 => 'Banner 2 button link',
+                ],
+                ignoredLinkSlots: [0],
+            ),
+            'home_banner_4' => $this->validateFixedBannerGroup(
+                imagesType: 'home_banner_4_images',
+                linksType: 'home_banner_4_links',
+                request: $request,
+                requiredSlots: [
+                    0 => 'Banner 3 slide 1 image',
+                    1 => 'Banner 3 slide 2 image',
+                    2 => 'Banner 3 slide 3 image',
+                    3 => 'Banner 3 newsletter image',
+                ],
+                requiredLinks: [],
+                ignoredLinkSlots: [3],
+            ),
+            default => [],
+        };
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages($messages);
+        }
+    }
+
+    protected function validateDynamicBannerGroup(
+        string $imagesType,
+        string $linksType,
+        string $imageLabel,
+        Request $request,
+        bool $requireAtLeastOneImage = false,
+    ): array {
+        $messages = [];
+        $imageIds = $this->normalizeSubmittedArray($request->input($imagesType, []));
+        $links = $this->normalizeSubmittedArray($request->input($linksType, []));
+
+        $nonEmptyImageIds = array_values(array_filter($imageIds, fn ($value) => $value !== null && $value !== ''));
+
+        if ($requireAtLeastOneImage && $nonEmptyImageIds === []) {
+            $messages[$imagesType] = "{$imageLabel} requires at least one image.";
+            return $messages;
+        }
+
+        $this->validateUploadIds($imagesType, $nonEmptyImageIds, $messages, $imageLabel);
+
+        foreach ($links as $index => $link) {
+            $this->validateBannerLink("{$linksType}.{$index}", $link, $messages, "{$imageLabel} link");
+        }
+
+        return $messages;
+    }
+
+    protected function validateFixedBannerGroup(
+        string $imagesType,
+        string $linksType,
+        Request $request,
+        array $requiredSlots,
+        array $requiredLinks = [],
+        array $ignoredLinkSlots = [],
+    ): array {
+        $messages = [];
+        $mergedImages = $this->mergedRequestArray($imagesType, $request->input($imagesType, []));
+        $mergedLinks = $this->mergedRequestArray($linksType, $request->input($linksType, []));
+
+        foreach ($requiredSlots as $index => $label) {
+            $value = $mergedImages[$index] ?? null;
+
+            if ($value === null || $value === '') {
+                $messages["{$imagesType}.{$index}"] = "{$label} is required.";
+                continue;
+            }
+
+            $this->validateUploadIds("{$imagesType}.{$index}", [$value], $messages, $label);
+        }
+
+        foreach ($mergedLinks as $index => $link) {
+            if (in_array($index, $ignoredLinkSlots, true)) {
+                continue;
+            }
+
+            $requiredLabel = $requiredLinks[$index] ?? null;
+            $this->validateBannerLink(
+                "{$linksType}.{$index}",
+                $link,
+                $messages,
+                $requiredLabel ?: "Banner link",
+                $requiredLabel !== null
+            );
+        }
+
+        foreach ($requiredLinks as $index => $label) {
+            if (!array_key_exists("{$linksType}.{$index}", $messages)) {
+                $link = $mergedLinks[$index] ?? null;
+
+                if (!is_string($link) || trim($link) === '') {
+                    $messages["{$linksType}.{$index}"] = "{$label} is required.";
+                }
+            }
+        }
+
+        return $messages;
+    }
+
+    protected function mergedRequestArray(string $type, $submitted): array
+    {
+        $submittedArray = $this->normalizeSubmittedArray($submitted);
+
+        if (!$this->shouldPreserveSparseArrayEntries($type)) {
+            return $submittedArray;
+        }
+
+        return $this->mergeSparseArrayEntries($submittedArray, $this->existingSettingArray($type));
+    }
+
+    protected function existingSettingArray(string $type): array
+    {
+        $existingValue = get_setting($type);
+
+        if (!is_string($existingValue) || trim($existingValue) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($existingValue, true);
+
+        return is_array($decoded) ? array_values($decoded) : [];
+    }
+
+    protected function normalizeSubmittedArray($value): array
+    {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_map(function ($item) {
+            if ($item === null) {
+                return null;
+            }
+
+            if (!is_scalar($item)) {
+                return null;
+            }
+
+            $normalized = trim((string) $item);
+
+            return $normalized === '' ? null : $normalized;
+        }, $value);
+    }
+
+    protected function mergeSparseArrayEntries(array $submitted, array $existing): array
+    {
+        $merged = $submitted;
+
+        foreach ($merged as $index => $submittedValue) {
+            if (($submittedValue === null || $submittedValue === '') && array_key_exists($index, $existing)) {
+                $merged[$index] = $existing[$index];
+            }
+        }
+
+        return $merged;
+    }
+
+    protected function validateUploadIds(string $field, array $uploadIds, array &$messages, string $label): void
+    {
+        if ($uploadIds === []) {
+            return;
+        }
+
+        $uploads = Upload::query()
+            ->whereIn('id', $uploadIds)
+            ->get()
+            ->keyBy(fn (Upload $upload) => (string) $upload->id);
+
+        foreach ($uploadIds as $uploadId) {
+            $upload = $uploads->get((string) $uploadId);
+
+            if (!$upload || $upload->type !== 'image') {
+                $messages[$field] = "{$label} is invalid. Please reselect the image from Uploaded Files.";
+                return;
+            }
+
+            if (!$upload->fileExists()) {
+                $messages[$field] = "{$label} is missing from storage. Please upload the image again.";
+                return;
+            }
+        }
+    }
+
+    protected function validateBannerLink(
+        string $field,
+        mixed $value,
+        array &$messages,
+        string $label,
+        bool $required = false,
+    ): void {
+        $normalized = is_string($value) ? trim($value) : '';
+
+        if ($normalized === '') {
+            if ($required) {
+                $messages[$field] = "{$label} is required.";
+            }
+
+            return;
+        }
+
+        if (preg_match('#^/link-\d+$#i', $normalized)) {
+            $messages[$field] = "{$label} is using a placeholder path. Please enter a real route.";
+            return;
+        }
+
+        if (!Str::startsWith($normalized, ['/', 'http://', 'https://', '#'])) {
+            $messages[$field] = "{$label} must start with /, http://, https://, or #.";
+        }
     }
 
     public function updateActivationSettings(Request $request)

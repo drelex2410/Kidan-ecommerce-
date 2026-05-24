@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Resources\CategoryCollection;
 use App\Http\Resources\ProductCollection;
+use App\Models\Page;
 use App\Http\Resources\ShopCollection;
 use App\Models\Category;
 use App\Models\Product;
@@ -275,9 +276,12 @@ class SettingController extends Controller
                 ],
                 'show_language_switcher' => get_setting('show_language_switcher') ?? 'off',
                 'helpline' => get_setting('topbar_helpline_number'),
-                'header_menu' => get_setting('header_menu_labels') !== null
-                    ? array_combine(json_decode(get_setting('header_menu_labels')), json_decode(get_setting('header_menu_links')))
-                    : []
+                'header_menu' => $this->appendAboutPageLink(
+                    $this->combineMenuLabelsAndLinks(
+                        get_setting('header_menu_labels'),
+                        get_setting('header_menu_links')
+                    )
+                ),
             ]);
         });
     }
@@ -317,5 +321,68 @@ class SettingController extends Controller
                     : ['facebook-f' => null, 'twitter' => null, 'instagram' => null, 'youtube' => null, 'linkedin-in' => null],
             ]);
         });
+    }
+
+    private function combineMenuLabelsAndLinks(?string $labels, ?string $links): array
+    {
+        if ($labels === null || $links === null) {
+            return [];
+        }
+
+        $decodedLabels = json_decode($labels, true);
+        $decodedLinks = json_decode($links, true);
+
+        if (!is_array($decodedLabels) || !is_array($decodedLinks)) {
+            return [];
+        }
+
+        $menu = [];
+
+        foreach ($decodedLabels as $index => $label) {
+            $normalizedLabel = is_string($label) ? trim($label) : '';
+
+            if ($normalizedLabel === '') {
+                continue;
+            }
+
+            $link = $decodedLinks[$index] ?? '/';
+            $normalizedLink = is_string($link) ? trim($link) : '/';
+
+            $menu[$normalizedLabel] = $normalizedLink !== '' ? $normalizedLink : '/';
+        }
+
+        return $menu;
+    }
+
+    private function appendAboutPageLink(array $menu): array
+    {
+        if (array_key_exists('About Us', $menu)) {
+            return $menu;
+        }
+
+        $aboutPage = Page::query()
+            ->published()
+            ->where('slug', 'about-us')
+            ->first();
+
+        if (!$aboutPage) {
+            return $menu;
+        }
+
+        $withAbout = [];
+
+        foreach ($menu as $label => $link) {
+            $withAbout[$label] = $link;
+
+            if ($label === 'Brands') {
+                $withAbout['About Us'] = $aboutPage->frontend_path;
+            }
+        }
+
+        if (!array_key_exists('About Us', $withAbout)) {
+            $withAbout['About Us'] = $aboutPage->frontend_path;
+        }
+
+        return $withAbout;
     }
 }

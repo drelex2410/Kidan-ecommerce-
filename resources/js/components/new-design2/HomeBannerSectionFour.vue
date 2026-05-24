@@ -5,8 +5,8 @@
         </div>
 
         <div v-else class="banner-container">
-            <div class="banner-grid">
-                <swiper :slides-per-view="1" :space-between="0" :loop="true" :autoplay="carouselOption.autoplay"
+            <div v-if="swiperBanners.length || newsletterBanner" class="banner-grid">
+                <swiper v-if="swiperBanners.length" :slides-per-view="1" :space-between="0" :loop="true" :autoplay="carouselOption.autoplay"
                     :modules="modules" :pagination="{ clickable: true }" class="main-swiper">
                     <swiper-slide v-for="(banner, i) in swiperBanners" :key="i">
                         <router-link :to="banner.link || '/'" class="banner-slide">
@@ -148,14 +148,9 @@ export default {
     async created() {
         const res = await this.call_api("get", "setting/home/banner_section_four");
         if (res.data.success) {
-            this.banners = res.data.data;
-            if (this.banners.length > 0) {
-                this.newsletterBanner = this.banners[this.banners.length - 1];
-                this.swiperBanners = this.banners.slice(0, this.banners.length - 1);
-            } else {
-                this.swiperBanners = [];
-                this.newsletterBanner = null;
-            }
+            this.banners = Array.isArray(res.data.data) ? res.data.data : [];
+            this.swiperBanners = this.banners.filter((banner) => banner.slot?.startsWith('slide_') && banner.img);
+            this.newsletterBanner = this.banners.find((banner) => banner.slot === 'newsletter' && banner.img) || null;
             this.loading = false;
         }
 

@@ -43,7 +43,7 @@ class PhaseFiveContentTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.slug', 'about-us')
             ->assertJsonPath('data.sections.0.type', 'hero')
-            ->assertJsonPath('data.sections.0.data.image', route('uploads.file', ['upload' => 1]));
+            ->assertJsonPath('data.sections.0.data.image', $this->uploadPath(1));
     }
 
     public function test_page_by_slug_returns_explicit_404(): void
@@ -58,9 +58,43 @@ class PhaseFiveContentTest extends TestCase
         $response = $this->getJson('/api/v1/setting/header');
 
         $response->assertOk()
-            ->assertJsonPath('top_banner.img', route('uploads.file', ['upload' => 1]))
+            ->assertJsonPath('top_banner.img', $this->uploadPath(1))
             ->assertJsonPath('mobile_app_links.show_play_store', 'on')
             ->assertJsonPath('header_menu.Shop', '/shops');
+    }
+
+    public function test_header_settings_endpoint_appends_about_us_page_when_available(): void
+    {
+        $this->seedPage();
+        Cache::forget('settings');
+        Cache::forget('v1.header_setting');
+
+        $response = $this->getJson('/api/v1/setting/header');
+
+        $response->assertOk()
+            ->assertJsonPath('header_menu.Shop', '/shops')
+            ->assertJsonPath('header_menu.About Us', '/about');
+    }
+
+    public function test_header_settings_endpoint_preserves_menu_items_when_links_drift(): void
+    {
+        DB::table('settings')->where('type', 'header_menu_labels')->update([
+            'value' => json_encode(['Shop', 'Journal', 'Offers']),
+        ]);
+
+        DB::table('settings')->where('type', 'header_menu_links')->update([
+            'value' => json_encode(['/shops', '/journal']),
+        ]);
+
+        Cache::forget('settings');
+        Cache::forget('v1.header_setting');
+
+        $response = $this->getJson('/api/v1/setting/header');
+
+        $response->assertOk()
+            ->assertJsonPath('header_menu.Shop', '/shops')
+            ->assertJsonPath('header_menu.Journal', '/journal')
+            ->assertJsonPath('header_menu.Offers', '/');
     }
 
     public function test_footer_settings_endpoint_returns_footer_contract(): void
@@ -68,7 +102,7 @@ class PhaseFiveContentTest extends TestCase
         $response = $this->getJson('/api/v1/setting/footer');
 
         $response->assertOk()
-            ->assertJsonPath('footer_logo', route('uploads.file', ['upload' => 2]))
+            ->assertJsonPath('footer_logo', $this->uploadPath(2))
             ->assertJsonPath('footer_link_one.title', 'Company')
             ->assertJsonPath('footer_menu.Contact', '/contact')
             ->assertJsonPath('mobile_app_links.play_store', 'https://play.example.com');
@@ -80,8 +114,32 @@ class PhaseFiveContentTest extends TestCase
 
         $response->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonPath('data.one.0.img', route('uploads.file', ['upload' => 1]))
+            ->assertJsonPath('data.one.0.img', $this->uploadPath(1))
             ->assertJsonPath('data.four.0.link', '/promo-4');
+    }
+
+    public function test_banner_section_two_endpoint_preserves_fixed_slots(): void
+    {
+        $response = $this->getJson('/api/v1/setting/home/banner_section_two');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.0.slot', 'background')
+            ->assertJsonPath('data.0.link', null)
+            ->assertJsonPath('data.1.slot', 'product')
+            ->assertJsonPath('data.1.link', '/banner-2');
+    }
+
+    public function test_banner_section_four_endpoint_returns_stable_slot_mapping(): void
+    {
+        $response = $this->getJson('/api/v1/setting/home/banner_section_four');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.0.slot', 'slide_1')
+            ->assertJsonPath('data.2.link', '/slide-3')
+            ->assertJsonPath('data.3.slot', 'newsletter')
+            ->assertJsonPath('data.3.link', null);
     }
 
     public function test_home_product_section_endpoint_returns_title_and_products(): void
@@ -477,6 +535,11 @@ class PhaseFiveContentTest extends TestCase
         }
     }
 
+    private function uploadPath(int $uploadId): string
+    {
+        return "/uploads/{$uploadId}/file";
+    }
+
     private function seedSettings(): void
     {
         $settings = [
@@ -515,6 +578,12 @@ class PhaseFiveContentTest extends TestCase
             'home_slider_3_links' => json_encode(['/promo-3']),
             'home_slider_4_images' => json_encode([4]),
             'home_slider_4_links' => json_encode(['/promo-4']),
+            'home_banner_1_images' => json_encode([3, 4]),
+            'home_banner_1_links' => json_encode(['/banner-1', null]),
+            'home_banner_2_images' => json_encode([5, 6]),
+            'home_banner_2_links' => json_encode([null, '/banner-2']),
+            'home_banner_4_images' => json_encode([3, 4, 5, 6]),
+            'home_banner_4_links' => json_encode(['/slide-1', '/slide-2', '/slide-3', null]),
             'home_product_section_2_title' => 'Featured Picks',
             'home_about_us' => '<p>Editorial home intro</p>',
             'home_about_youtube_url' => 'https://www.youtube.com/watch?v=abc123xyz89',

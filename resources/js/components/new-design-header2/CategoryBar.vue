@@ -1,24 +1,38 @@
 <template>
-  <div class="category-bar" v-if="categories.length && isScrolled">
+  <div class="category-bar" v-if="combinedItems.length">
     <div class="category-bar-container d-flex align-center">
-      <div
-        v-for="(category, i) in visibleCategories"
-        :key="category.id || i"
-        class="category-wrapper"
-        @mouseenter="activateCategory(category)"
-      >
-        <router-link
-          :to="{ name: 'Category', params: { categorySlug: category.slug } }"
-          class="category-link"
-          :class="{ 'is-active': activeCategory && activeCategory.id === category.id }"
-          @click="closeAllMenus"
+      <template v-for="(item, i) in visibleItems" :key="item.kind === 'menu' ? item.id : item.id || i">
+        <div
+          v-if="item.kind === 'menu'"
+          class="category-wrapper"
         >
-          {{ category.name }}
-        </router-link>
-      </div>
+          <router-link
+            :to="item.link || '/'"
+            class="category-link"
+            @click="closeAllMenus"
+          >
+            {{ item.label }}
+          </router-link>
+        </div>
+
+        <div
+          v-else
+          class="category-wrapper"
+          @mouseenter="activateCategory(item)"
+        >
+          <router-link
+            :to="{ name: 'Category', params: { categorySlug: item.slug } }"
+            class="category-link"
+            :class="{ 'is-active': activeCategory && activeCategory.id === item.id }"
+            @click="closeAllMenus"
+          >
+            {{ item.name }}
+          </router-link>
+        </div>
+      </template>
 
       <button
-        v-if="hiddenCategories.length > 0"
+        v-if="hiddenItems.length > 0"
         @click="openModal"
         @mouseenter="startHoverTimer"
         @mouseleave="clearHoverTimer"
@@ -110,15 +124,25 @@
           </button>
         </div>
         <div class="modal-grid">
-          <router-link
-            v-for="(category, i) in hiddenCategories"
-            :key="category.id || `hidden-${i}`"
-            :to="{ name: 'Category', params: { categorySlug: category.slug } }"
-            class="modal-category-link"
-            @click="closeModal"
-          >
-            {{ category.name }}
-          </router-link>
+          <template v-for="(item, i) in hiddenItems" :key="item.kind === 'menu' ? item.id : item.id || `hidden-${i}`">
+            <router-link
+              v-if="item.kind === 'menu'"
+              :to="item.link || '/'"
+              class="modal-category-link"
+              @click="closeModal"
+            >
+              {{ item.label }}
+            </router-link>
+
+            <router-link
+              v-else
+              :to="{ name: 'Category', params: { categorySlug: item.slug } }"
+              class="modal-category-link"
+              @click="closeModal"
+            >
+              {{ item.name }}
+            </router-link>
+          </template>
         </div>
       </div>
     </div>
@@ -131,6 +155,7 @@ export default {
 
   props: {
     categories: { type: Array, required: true },
+    menuItems: { type: Object, default: () => ({}) },
     isScrolled: { type: Boolean, required: true },
   },
 
@@ -146,12 +171,32 @@ export default {
   },
 
   computed: {
-    visibleCategories() {
-      return this.categories.slice(0, this.visibleCount);
+    normalizedMenuItems() {
+      return Object.entries(this.menuItems || {}).map(([label, link], index) => ({
+        kind: "menu",
+        id: `menu-${index}-${label}`,
+        label,
+        link,
+      }));
     },
 
-    hiddenCategories() {
-      return this.categories.slice(this.visibleCount);
+    normalizedCategories() {
+      return this.categories.map((category) => ({
+        ...category,
+        kind: "category",
+      }));
+    },
+
+    combinedItems() {
+      return [...this.normalizedMenuItems, ...this.normalizedCategories];
+    },
+
+    visibleItems() {
+      return this.combinedItems.slice(0, this.visibleCount);
+    },
+
+    hiddenItems() {
+      return this.combinedItems.slice(this.visibleCount);
     },
 
     activeCategoryChildren() {
@@ -182,7 +227,7 @@ export default {
       } else if (width <= 1024) {
         this.visibleCount = 8;
       } else {
-        this.visibleCount = 11;
+        this.visibleCount = 12;
       }
     },
 

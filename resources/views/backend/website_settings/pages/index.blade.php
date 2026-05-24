@@ -58,7 +58,7 @@
 						<i class="las la-pen"></i>
 					</a>
 					@endif
-					@if($page->type == 'custom_page')
+					@if($page->type == 'custom_page' && !in_array($page->slug, ['about-us', 'journal'], true))
 						<a href="#" class="btn btn-soft-danger btn-icon btn-circle btn-sm confirm-delete" data-href="{{ route('custom-pages.destroy', $page->id)}} " title="{{ translate('Delete') }}">
 							<i class="las la-trash"></i>
 						</a>

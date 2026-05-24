@@ -7,39 +7,38 @@
         </button>
       </div>
       <div class="sidebar-content">
-        <div v-if="loadingCategories" class="loading-state">
+        <div v-if="loadingCategories && !headerMenuItems.length" class="loading-state">
           <v-skeleton-loader type="table" class="w-100"></v-skeleton-loader>
         </div>
         <div v-else class="categories-list">
-          <!-- Dynamic Menu Items from header_menu -->
-          <div 
-            v-for="(link, label) in data?.header_menu || {}" 
-            :key="label"
-            class="category-item"
-          >
-            <router-link 
-              :to="link" 
-              class="category-link-sidebar" 
-              @click="toggleSidebar"
+          <div v-if="headerMenuItems.length" class="menu-section">
+            <div
+              v-for="item in headerMenuItems"
+              :key="item.label"
+              class="category-item"
             >
-              <span>{{ label }}</span>
-            </router-link>
+              <router-link
+                :to="item.link || '/'"
+                class="category-link-sidebar"
+                @click="toggleSidebar"
+              >
+                <span>{{ item.label }}</span>
+              </router-link>
+            </div>
           </div>
 
-          <!-- Static Contact Us Section -->
           <div class="category-item contact-section">
-            <div class="contact-header">
-            </div>
+            <div class="contact-header">Contact Us</div>
             <div class="contact-content">
               <div class="contact-item">
                 <p class="contact-label">Locate our store</p>
-                <p class="contact-detail">No. 10 New Yidi Road Ilorin, Kwara State Nigeria.</p>
+                <p class="contact-detail contact-detail--emphasis">No. 10 New Yidi Road Ilorin, Kwara State Nigeria.</p>
               </div>
               <div class="contact-item">
-                <p class="contact-detail">support@kidanstore.com</p>
+                <p class="contact-detail contact-detail--large">support@kidanstore.com</p>
               </div>
               <div class="contact-item">
-                <p class="contact-detail">07071827096</p>
+                <p class="contact-detail contact-detail--large">07071827096</p>
               </div>
             </div>
           </div>
@@ -57,6 +56,14 @@ export default {
     loadingCategories: { type: Boolean, required: true },
     categories: { type: Array, required: true },
     data: { type: Object, default: () => ({}) },
+  },
+  computed: {
+    headerMenuItems() {
+      return Object.entries(this.data?.header_menu || {}).map(([label, link]) => ({
+        label,
+        link,
+      }));
+    },
   },
   methods: {
     toggleSidebar() {
@@ -146,6 +153,11 @@ export default {
   gap: 0;
 }
 
+.menu-section {
+  display: flex;
+  flex-direction: column;
+}
+
 .category-item {
   display: flex;
   flex-direction: column;
@@ -158,8 +170,9 @@ export default {
   justify-content: space-between;
   color: #000;
   text-decoration: none;
-  font-size: 1rem;
-  padding: 1.25rem 2rem;
+  font-size: 1.05rem;
+  line-height: 1.2;
+  padding: 1.35rem 2rem;
   border-radius: 0;
   transition: background 0.2s ease;
   background: transparent;
@@ -175,40 +188,57 @@ export default {
 
 /* Contact Section Styles */
 .contact-section {
-  border-bottom: none;
+  margin-top: 1.5rem;
+  padding: 0 2rem 2.5rem;
 }
 
 .contact-header {
-  padding: 1.25rem 2rem;
-  font-size: 1rem;
+  padding: 1.5rem 0 1.1rem;
+  margin: 0;
+  font-size: 2rem;
+  line-height: 1.1;
+  font-weight: 700;
   color: #000;
-  border-bottom: 1px solid #e5e5e5;
 }
 
 .contact-content {
-  padding: 1.5rem 2rem;
+  padding: 1.65rem 0 1.65rem;
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
+  gap: 1.75rem;
+  border-top: 1px solid #1f1f1f;
+  border-bottom: 1px solid #1f1f1f;
 }
 
 .contact-item {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.55rem;
 }
 
 .contact-label {
-  font-size: 0.875rem;
+  font-size: 0.95rem;
+  font-weight: 300;
+  line-height: 1.3;
   color: #000;
   margin: 0;
 }
 
 .contact-detail {
-  font-size: 0.875rem;
-  color: #666;
+  font-size: 1rem;
+  color: #111;
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.35;
+}
+
+.contact-detail--emphasis {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.contact-detail--large {
+  font-size: 1.05rem;
+  font-weight: 300;
 }
 
 .loading-state {
@@ -223,12 +253,17 @@ export default {
   }
   
   .category-link-sidebar {
-    padding: 1rem 1.5rem;
+    padding: 1.15rem 1.5rem;
     font-size: 0.95rem;
   }
   
   .contact-header,
   .contact-content {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  .contact-section {
     padding-left: 1.5rem;
     padding-right: 1.5rem;
   }

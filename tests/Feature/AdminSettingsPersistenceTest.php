@@ -135,4 +135,34 @@ class AdminSettingsPersistenceTest extends TestCase
             Setting::query()->where('type', $type)->value('value')
         );
     }
+
+    public function test_settings_update_clears_frontend_content_cache_keys(): void
+    {
+        $type = 'test_banner_setting_' . Str::lower(Str::random(8));
+        $this->settingTypes[] = $type;
+
+        Setting::query()->create([
+            'type' => $type,
+            'value' => '101',
+        ]);
+
+        Cache::put('v1.home.sliders', ['stale' => true], 86400);
+        Cache::put('v1.header_setting', ['stale' => true], 86400);
+        Cache::put('header_setting', ['stale' => true], 86400);
+
+        $this->assertTrue(Cache::has('v1.home.sliders'));
+        $this->assertTrue(Cache::has('v1.header_setting'));
+        $this->assertTrue(Cache::has('header_setting'));
+
+        $this->actingAs($this->admin)
+            ->post(route('settings.update'), [
+                'types' => [$type],
+                $type => '303',
+            ])
+            ->assertRedirect();
+
+        $this->assertFalse(Cache::has('v1.home.sliders'));
+        $this->assertFalse(Cache::has('v1.header_setting'));
+        $this->assertFalse(Cache::has('header_setting'));
+    }
 }

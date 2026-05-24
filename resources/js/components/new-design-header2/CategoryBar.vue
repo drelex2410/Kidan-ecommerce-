@@ -1,5 +1,9 @@
 <template>
-  <div class="category-bar" v-if="combinedItems.length">
+  <div
+    class="category-bar"
+    :class="{ 'is-visible': visible }"
+    v-if="combinedItems.length"
+  >
     <div class="category-bar-container d-flex align-center">
       <template v-for="(item, i) in visibleItems" :key="item.kind === 'menu' ? item.id : item.id || i">
         <div
@@ -9,7 +13,7 @@
           <router-link
             :to="item.link || '/'"
             class="category-link"
-            @click="closeAllMenus"
+            @click="requestClose"
           >
             {{ item.label }}
           </router-link>
@@ -24,7 +28,7 @@
             :to="{ name: 'Category', params: { categorySlug: item.slug } }"
             class="category-link"
             :class="{ 'is-active': activeCategory && activeCategory.id === item.id }"
-            @click="closeAllMenus"
+            @click="requestClose"
           >
             {{ item.name }}
           </router-link>
@@ -66,7 +70,7 @@
                   'has-children': hasChildren(subcategory),
                 }"
                 @mouseenter="activateSubcategory(subcategory)"
-                @click="closeAllMenus"
+                @click="requestClose"
               >
                 <span class="subcategory-name">{{ subcategory.name }}</span>
                 <i v-if="hasChildren(subcategory)" class="las la-angle-right subcategory-caret"></i>
@@ -77,7 +81,7 @@
                 :to="{ name: 'Category', params: { categorySlug: activeCategory.slug } }"
                 class="subcategory-item view-all-item"
                 @mouseenter="clearActiveSubcategory"
-                @click="closeAllMenus"
+                @click="requestClose"
               >
                 <span class="subcategory-name">View All {{ activeCategory.name }}</span>
               </router-link>
@@ -87,10 +91,10 @@
               <div v-if="hasSubSubcategoryPanel" class="sub-subcategory-panel">
                 <div class="sub-subcategory-header">
                   <router-link
-                    :to="{ name: 'Category', params: { categorySlug: activeSubcategory.slug } }"
-                    class="sub-subcategory-parent"
-                    @click="closeAllMenus"
-                  >
+                  :to="{ name: 'Category', params: { categorySlug: activeSubcategory.slug } }"
+                  class="sub-subcategory-parent"
+                  @click="requestClose"
+                >
                     {{ activeSubcategory.name }}
                   </router-link>
                 </div>
@@ -101,7 +105,7 @@
                     :key="child.id || index"
                     :to="{ name: 'Category', params: { categorySlug: child.slug } }"
                     class="sub-subcategory-item"
-                    @click="closeAllMenus"
+                    @click="requestClose"
                   >
                     {{ child.name }}
                   </router-link>
@@ -129,7 +133,7 @@
               v-if="item.kind === 'menu'"
               :to="item.link || '/'"
               class="modal-category-link"
-              @click="closeModal"
+              @click="requestClose"
             >
               {{ item.label }}
             </router-link>
@@ -138,7 +142,7 @@
               v-else
               :to="{ name: 'Category', params: { categorySlug: item.slug } }"
               class="modal-category-link"
-              @click="closeModal"
+              @click="requestClose"
             >
               {{ item.name }}
             </router-link>
@@ -151,12 +155,12 @@
 
 <script>
 export default {
-  emits: ["menu-state-change"],
+  emits: ["menu-state-change", "request-close"],
 
   props: {
     categories: { type: Array, required: true },
     menuItems: { type: Object, default: () => ({}) },
-    isScrolled: { type: Boolean, required: true },
+    visible: { type: Boolean, default: false },
   },
 
   data() {
@@ -251,6 +255,10 @@ export default {
     },
 
     activateCategory(category) {
+      if (!this.visible) {
+        return;
+      }
+
       this.clearHideTimer();
       this.activeCategory = category;
       this.activeSubcategory = null;
@@ -258,6 +266,10 @@ export default {
     },
 
     activateSubcategory(subcategory) {
+      if (!this.visible) {
+        return;
+      }
+
       this.clearHideTimer();
       this.activeSubcategory = this.hasChildren(subcategory) ? subcategory : null;
       this.emitMenuState();
@@ -284,8 +296,10 @@ export default {
 
     closeAllMenus() {
       this.clearHideTimer();
+      this.clearHoverTimer();
       this.activeCategory = null;
       this.activeSubcategory = null;
+      this.showMoreModal = false;
       this.emitMenuState();
     },
 
@@ -304,6 +318,10 @@ export default {
     },
 
     openModal() {
+      if (!this.visible) {
+        return;
+      }
+
       this.clearHoverTimer();
       this.showMoreModal = true;
       this.emitMenuState();
@@ -313,6 +331,11 @@ export default {
       this.clearHoverTimer();
       this.showMoreModal = false;
       this.emitMenuState();
+    },
+
+    requestClose() {
+      this.closeAllMenus();
+      this.$emit("request-close");
     },
 
     handleKeydown(event) {
@@ -338,6 +361,12 @@ export default {
   },
 
   watch: {
+    visible(newValue) {
+      if (!newValue) {
+        this.closeAllMenus();
+      }
+    },
+
     showMoreModal(newValue) {
       if (newValue) {
         document.addEventListener("click", this.handleClickOutside);
@@ -375,7 +404,30 @@ export default {
   --menu-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
   border-bottom: 1px solid var(--menu-border);
   background: #FFFBF3;
-  position: relative;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-8px);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    visibility 0s linear 0.18s;
+  z-index: 1001;
+}
+
+.category-bar.is-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    visibility 0s linear 0s;
 }
 
 .category-bar-container {
@@ -698,6 +750,10 @@ export default {
 }
 
 @media (max-width: 1024px) {
+  .category-bar {
+    display: none;
+  }
+
   .category-bar-container {
     gap: 2rem;
     padding: 0 2rem;

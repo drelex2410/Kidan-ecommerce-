@@ -148,13 +148,14 @@
       </div>
     </div>
 
-    <CategoryBar 
-      :categories="categories" 
+    <CategoryBar
+      v-if="canUseDesktopHoverMenu"
+      :categories="categories"
       :menu-items="data?.header_menu || {}"
-      :is-scrolled="isScrolled || showCategories"
-      @mouseenter="showCategories = true"
-      @mouseleave="startHideTimer"
-      @menu-state-change="handleCategoryMenuState" />
+      :visible="showCategories"
+      @menu-state-change="handleCategoryMenuState"
+      @request-close="closeDesktopMenu"
+    />
 
     <Sidebar :show-sidebar="showSidebar" :loading-categories="loadingCategories" :categories="categories"
       @toggle-sidebar="toggleSidebar" :data="data" />
@@ -193,6 +194,7 @@ export default {
     showLanguageMenu: false,
     showCurrencyMenu: false,
     hideCategoryTimeout: null, // NEW: Timer for hiding categories
+    canUseDesktopHoverMenu: false,
   }),
   computed: {
     ...mapGetters("app", [
@@ -227,32 +229,35 @@ export default {
   watch: {
     showSidebar(val) {
       document.body.classList.toggle("overflow-hidden", val);
+      if (val) {
+        this.closeDesktopMenu({ preserveHover: true });
+      }
     },
     showAccountMenu(val) {
       document.body.classList.toggle("overflow-hidden", val);
+      if (val) {
+        this.closeDesktopMenu({ preserveHover: true });
+      }
     },
     $route() {
       this.closeCartDrawer();
       this.closeUtilityMenus();
-    },
-    isScrolled(newVal) {
-      // Always show categories when scrolled
-      if (newVal) {
-        this.showCategories = true;
-        this.clearHideTimer();
-      }
+      this.closeDesktopMenu();
     },
   },
   beforeUnmount() {
     document.body.classList.remove("overflow-hidden");
     window.removeEventListener("scroll", this.handleScroll);
+    window.removeEventListener("resize", this.updateHoverCapability);
     document.removeEventListener("click", this.handleDocumentClick);
     clearTimeout(this.scrollTimeout);
     this.clearHideTimer();
   },
   mounted() {
     this.fetchCategories();
+    this.updateHoverCapability();
     window.addEventListener("scroll", this.handleScroll);
+    window.addEventListener("resize", this.updateHoverCapability);
     document.addEventListener("click", this.handleDocumentClick);
     this.selectedCurrencyCode =
       this.generalSettings?.currency?.selected_currency_code ||
@@ -275,8 +280,23 @@ export default {
     handleScroll() {
       const current = window.scrollY;
       this.isScrolled = current > 50;
+      this.closeDesktopMenu({ preserveHover: true });
       clearTimeout(this.scrollTimeout);
       this.scrollTimeout = setTimeout(() => { }, 150);
+    },
+    updateHoverCapability() {
+      if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+        this.canUseDesktopHoverMenu = false;
+        this.closeDesktopMenu();
+        return;
+      }
+
+      const canHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+      this.canUseDesktopHoverMenu = canHover && window.innerWidth > 1024;
+
+      if (!this.canUseDesktopHoverMenu) {
+        this.closeDesktopMenu();
+      }
     },
     async logout() {
       await this.call_api("get", "auth/logout");
@@ -323,12 +343,14 @@ export default {
       }
     },
     toggleLanguageMenu() {
+      this.closeDesktopMenu({ preserveHover: true });
       this.showLanguageMenu = !this.showLanguageMenu;
       if (this.showLanguageMenu) {
         this.showCurrencyMenu = false;
       }
     },
     toggleCurrencyMenu() {
+      this.closeDesktopMenu({ preserveHover: true });
       this.showCurrencyMenu = !this.showCurrencyMenu;
       if (this.showCurrencyMenu) {
         this.showLanguageMenu = false;
@@ -352,20 +374,19 @@ export default {
       this.closeUtilityMenus();
     },
     handleHeaderMouseEnter() {
-      if (this.hasStaticNonHomeHeader) {
-        this.clearHideTimer();
-        this.showCategories = true;
+      if (!this.canUseDesktopHoverMenu || this.showSidebar) {
         return;
       }
+
       this.isHovered = true;
       this.clearHideTimer();
       this.showCategories = true;
     },
     handleHeaderMouseLeave() {
-      if (this.hasStaticNonHomeHeader) {
-        this.startHideTimer();
+      if (!this.canUseDesktopHoverMenu) {
         return;
       }
+
       this.isHovered = false;
       this.startHideTimer();
     },
@@ -373,38 +394,48 @@ export default {
       this.showSidebar = !this.showSidebar;
       if (this.showSidebar) {
         this.showAccountMenu = false;
-        this.showCategories = false; // Hide categories when sidebar opens
+        this.closeDesktopMenu({ preserveHover: true });
       }
     },
     toggleAccountMenu() {
       this.showAccountMenu = !this.showAccountMenu;
       if (this.showAccountMenu) {
         this.showSidebar = false;
-        this.showCategories = false; // Hide categories when account menu opens
+        this.closeDesktopMenu({ preserveHover: true });
       }
     },
     handleCategoryMenuState(isOpen) {
       this.isCategoryMenuOpen = isOpen;
 
       if (isOpen) {
-        this.showCategories = true;
         this.clearHideTimer();
       }
     },
-    // NEW: Timer methods for smooth hover effects
     startHideTimer() {
-      // Only hide categories if not scrolled
-      if (!this.isScrolled) {
-        this.clearHideTimer();
-        this.hideCategoryTimeout = setTimeout(() => {
-          this.showCategories = false;
-        }, 300);
+      if (!this.canUseDesktopHoverMenu) {
+        return;
       }
+
+      this.clearHideTimer();
+      this.hideCategoryTimeout = setTimeout(() => {
+        this.closeDesktopMenu();
+      }, 180);
     },
     clearHideTimer() {
       if (this.hideCategoryTimeout) {
         clearTimeout(this.hideCategoryTimeout);
         this.hideCategoryTimeout = null;
+      }
+    },
+    closeDesktopMenu(options = {}) {
+      const { preserveHover = false } = options;
+
+      this.clearHideTimer();
+      this.showCategories = false;
+      this.isCategoryMenuOpen = false;
+
+      if (!preserveHover) {
+        this.isHovered = false;
       }
     },
     async fetchCategories() {
@@ -442,6 +473,7 @@ export default {
   z-index: 1000;
   box-sizing: border-box;
   color: var(--header-fg);
+  overflow: visible;
 }
 
 .logobar.header-active,

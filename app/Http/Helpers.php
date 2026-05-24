@@ -883,6 +883,11 @@ if (!function_exists('cache_clear')) {
         }
 
         try {
+            Artisan::call('cache:clear');
+        } catch (\Throwable $exception) {
+        }
+
+        try {
             Artisan::call('optimize:clear');
         } catch (\Throwable $exception) {
         }

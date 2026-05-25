@@ -18,7 +18,12 @@ class UpdateProfileRequest extends FormRequest
             'date_of_birth' => ['nullable', 'date', 'before_or_equal:today'],
             'password' => ['nullable', 'string', 'min:6', 'same:confirmPassword'],
             'confirmPassword' => ['nullable', 'string', 'min:6'],
-            'avatar' => ['nullable', 'image', 'max:5120'],
+            'avatar' => [
+                'nullable',
+                'file',
+                'max:' . (int) config('uploads.image_max_file_size_kb', 15360),
+                'mimes:' . implode(',', (array) config('uploads.allowed_image_extensions', ['jpg', 'jpeg', 'png', 'webp', 'gif', 'svg'])),
+            ],
         ];
     }
 }

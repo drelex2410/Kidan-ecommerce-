@@ -24,7 +24,12 @@ class UploadResource extends JsonResource
             'download_url' => $this->download_url,
             'file_url' => $this->download_url,
             'is_previewable' => $this->is_previewable,
+            'file_missing' => $this->file_missing,
             'file_icon_class' => $this->file_icon_class,
+            'processing_status' => $this->processing_status ?? 'ready',
+            'processing_error' => $this->processing_error,
+            'file_hash' => $this->file_hash,
+            'mime_type' => $this->mime_type,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

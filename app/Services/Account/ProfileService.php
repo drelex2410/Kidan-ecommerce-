@@ -2,14 +2,18 @@
 
 namespace App\Services\Account;
 
-use App\Models\Upload;
 use App\Models\User;
+use App\Services\Uploads\UploadManager;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 
 class ProfileService
 {
+    public function __construct(private readonly UploadManager $uploadManager)
+    {
+    }
+
     public function update(User $user, array $payload, ?UploadedFile $avatar = null): User
     {
         $user->name = $payload['name'];
@@ -38,14 +42,7 @@ class ProfileService
             return null;
         }
 
-        $upload = new Upload();
-        $upload->file_original_name = pathinfo($avatar->getClientOriginalName(), PATHINFO_FILENAME);
-        $upload->file_name = $avatar->store('uploads/all');
-        $upload->user_id = $user->id;
-        $upload->extension = $avatar->getClientOriginalExtension();
-        $upload->type = 'image';
-        $upload->file_size = $avatar->getSize();
-        $upload->save();
+        $upload = $this->uploadManager->store($avatar, (int) $user->id);
 
         return (int) $upload->id;
     }

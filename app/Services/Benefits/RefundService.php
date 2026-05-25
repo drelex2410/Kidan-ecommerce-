@@ -7,7 +7,8 @@ use App\Models\OrderDetail;
 use App\Models\OrderUpdate;
 use App\Models\RefundRequest;
 use App\Models\RefundRequestItem;
-use App\Models\Upload;
+use App\Services\Uploads\UploadManager;
+use App\Support\Uploads\UploadValidationException;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -21,7 +22,8 @@ class RefundService
 {
     public function __construct(
         private readonly BenefitsFeatureService $featureService,
-        private readonly RefundEligibilityService $eligibilityService
+        private readonly RefundEligibilityService $eligibilityService,
+        private readonly UploadManager $uploadManager,
     )
     {
     }
@@ -232,14 +234,11 @@ class RefundService
                 continue;
             }
 
-            $upload = new Upload();
-            $upload->file_original_name = pathinfo($attachment->getClientOriginalName(), PATHINFO_FILENAME);
-            $upload->file_name = $attachment->store('uploads/all');
-            $upload->user_id = $user->id;
-            $upload->extension = $attachment->getClientOriginalExtension();
-            $upload->type = 'image';
-            $upload->file_size = $attachment->getSize();
-            $upload->save();
+            try {
+                $upload = $this->uploadManager->store($attachment, (int) $user->id);
+            } catch (UploadValidationException $exception) {
+                throw new HttpException($exception->status(), $exception->getMessage(), $exception);
+            }
 
             $ids[] = (int) $upload->id;
         }

@@ -7,7 +7,8 @@ use App\Http\Resources\UserCollection;
 use App\Models\Order;
 use App\Models\OrderDetail;
 use App\Models\Product;
-use App\Models\Upload;
+use App\Services\Uploads\UploadManager;
+use App\Support\Uploads\UploadValidationException;
 use App\Models\User;
 use App\Models\Wallet;
 use Illuminate\Http\Request;
@@ -63,30 +64,21 @@ class UserController extends Controller
         ]);
     }
 
-    public function updateInfo(Request $request)
+    public function updateInfo(Request $request, UploadManager $uploadManager)
     {
         $user = User::find(auth('api')->user()->id);
         // if (Hash::check($request->oldPassword, $user->password)) {
 
         if ($request->hasFile('avatar')) {
-            $upload = new Upload;
-            $upload->file_original_name = null;
-            $arr = explode('.', $request->file('avatar')->getClientOriginalName());
-
-            for ($i = 0; $i < count($arr) - 1; $i++) {
-                if ($i == 0) {
-                    $upload->file_original_name .= $arr[$i];
-                } else {
-                    $upload->file_original_name .= "." . $arr[$i];
-                }
+            try {
+                $upload = $uploadManager->store($request->file('avatar'), (int) $user->id);
+            } catch (UploadValidationException $exception) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $exception->getMessage(),
+                    'errors' => $exception->errors(),
+                ], $exception->status());
             }
-
-            $upload->file_name = $request->file('avatar')->store('uploads/all');
-            $upload->user_id = $user->id;
-            $upload->extension = $request->file('avatar')->getClientOriginalExtension();
-            $upload->type = 'image';
-            $upload->file_size = $request->file('avatar')->getSize();
-            $upload->save();
 
             $user->update([
                 'avatar' => $upload->id,

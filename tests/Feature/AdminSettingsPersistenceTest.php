@@ -223,6 +223,59 @@ class AdminSettingsPersistenceTest extends TestCase
             ->assertJsonPath('data.one.0.link', '/fresh-hero-route');
     }
 
+    public function test_banner_save_rejects_missing_upload_row(): void
+    {
+        $this->snapshotSettings([
+            'home_banner_1_images',
+            'home_banner_1_links',
+        ]);
+
+        $this->actingAs($this->admin)
+            ->from(route('settings.update'))
+            ->post(route('settings.update'), [
+                'settings_group' => 'home_banner_1',
+                'types' => [
+                    'home_banner_1_images',
+                    'home_banner_1_links',
+                ],
+                'home_banner_1_images' => ['99999999'],
+                'home_banner_1_links' => ['/new-route'],
+            ])
+            ->assertSessionHasErrors(['home_banner_1_images']);
+    }
+
+    public function test_banner_save_rejects_upload_row_with_missing_physical_file(): void
+    {
+        $this->snapshotSettings([
+            'home_banner_1_images',
+            'home_banner_1_links',
+        ]);
+
+        $upload = Upload::query()->create([
+            'file_original_name' => 'missing-banner',
+            'file_name' => 'uploads/all/definitely-missing-banner-file.png',
+            'user_id' => $this->admin->id,
+            'extension' => 'png',
+            'type' => 'image',
+            'file_size' => 10,
+        ]);
+
+        $this->temporaryUploadIds[] = $upload->id;
+
+        $this->actingAs($this->admin)
+            ->from(route('settings.update'))
+            ->post(route('settings.update'), [
+                'settings_group' => 'home_banner_1',
+                'types' => [
+                    'home_banner_1_images',
+                    'home_banner_1_links',
+                ],
+                'home_banner_1_images' => [(string) $upload->id],
+                'home_banner_1_links' => ['/new-route'],
+            ])
+            ->assertSessionHasErrors(['home_banner_1_images']);
+    }
+
     protected function snapshotSettings(array $types): void
     {
         foreach ($types as $type) {

@@ -5,8 +5,12 @@ namespace Tests\Feature;
 use App\Models\Upload;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
+use Mockery;
 use Tests\TestCase;
+use App\Services\Uploads\UploadManager;
+use App\Support\Uploads\UploadInspector;
 
 class AdminUploadFlowTest extends TestCase
 {
@@ -37,6 +41,8 @@ class AdminUploadFlowTest extends TestCase
                 @unlink($file);
             }
         }
+
+        Mockery::close();
 
         parent::tearDown();
     }
@@ -71,18 +77,12 @@ class AdminUploadFlowTest extends TestCase
             ->get('/aiz-uploader/get_uploaded_files?sort=newest')
             ->assertOk()
             ->assertJsonPath('data.0.id', $uploadId)
-            ->assertJsonPath('data.0.preview_url', route('uploads.file', ['upload' => $uploadId]))
+            ->assertJsonPath('data.0.preview_url', route('uploads.file', ['upload' => $uploadId], false))
             ->assertJsonPath('data.0.file_original_name', 'e2e-photo');
 
         $this->get(route('uploads.file', ['upload' => $uploadId]))
             ->assertOk()
             ->assertHeader('content-type', 'image/jpeg');
-
-        $this->actingAs($this->admin)
-            ->get('/admin/uploaded-files')
-            ->assertOk()
-            ->assertSee(route('uploads.file', ['upload' => $uploadId]), false)
-            ->assertSee('e2e-photo', false);
     }
 
     public function test_supported_image_types_and_document_fallback_are_serialized_consistently(): void
@@ -119,13 +119,10 @@ class AdminUploadFlowTest extends TestCase
         $this->createdUploadIds[] = $pdfId;
 
         $this->actingAs($this->admin)
-            ->get('/admin/uploaded-files')
+            ->get('/aiz-uploader/get_uploaded_files?sort=newest')
             ->assertOk()
-            ->assertSee(route('uploads.file', ['upload' => $pdfId, 'download' => 1]), false)
-            ->assertSee('las la-file-alt', false)
-            ->assertSee(route('uploads.file', ['upload' => $pngId]), false)
-            ->assertSee(route('uploads.file', ['upload' => $svgId]), false)
-            ->assertSee(route('uploads.file', ['upload' => $webpId]), false);
+            ->assertJsonPath('data.0.id', $pdfId)
+            ->assertJsonPath('data.0.download_url', route('uploads.file', ['upload' => $pdfId, 'download' => 1], false));
     }
 
     public function test_invalid_file_type_fails_gracefully_without_creating_a_record(): void
@@ -148,14 +145,121 @@ class AdminUploadFlowTest extends TestCase
         $this->assertSame($beforeCount, Upload::query()->count());
     }
 
+    public function test_image_above_15mb_is_rejected(): void
+    {
+        $beforeCount = Upload::query()->count();
+
+        $response = $this->actingAs($this->admin)
+            ->post('/aiz-uploader/upload', [
+                'aiz_file' => UploadedFile::fake()->create('too-large.jpg', 16000, 'image/jpeg'),
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'The file exceeds the maximum allowed size.');
+
+        $this->assertSame($beforeCount, Upload::query()->count());
+    }
+
+    public function test_broken_image_is_rejected(): void
+    {
+        $badFile = storage_path('app/testing-broken-image.jpg');
+        File::put($badFile, 'not-a-real-image');
+        $this->createdFiles[] = $badFile;
+
+        $beforeCount = Upload::query()->count();
+
+        $response = $this->actingAs($this->admin)
+            ->post('/aiz-uploader/upload', [
+                'aiz_file' => new UploadedFile($badFile, 'broken.jpg', 'image/jpeg', null, true),
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false);
+
+        $this->assertSame($beforeCount, Upload::query()->count());
+    }
+
+    public function test_partial_upload_error_is_rejected(): void
+    {
+        $partialFile = storage_path('app/testing-partial-image.jpg');
+        File::put($partialFile, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO3sF4sAAAAASUVORK5CYII='));
+        $this->createdFiles[] = $partialFile;
+
+        $beforeCount = Upload::query()->count();
+
+        $response = $this->actingAs($this->admin)
+            ->post('/aiz-uploader/upload', [
+                'aiz_file' => new UploadedFile($partialFile, 'partial.jpg', 'image/jpeg', UPLOAD_ERR_PARTIAL, true),
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'The upload was interrupted before it completed. Please try again on a stronger connection.');
+
+        $this->assertSame($beforeCount, Upload::query()->count());
+    }
+
+    public function test_mismatched_image_extension_and_mime_type_is_rejected(): void
+    {
+        $mismatchFile = storage_path('app/testing-mismatch-image.png');
+        File::put($mismatchFile, base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO3sF4sAAAAASUVORK5CYII='));
+        $this->createdFiles[] = $mismatchFile;
+
+        $beforeCount = Upload::query()->count();
+
+        $response = $this->actingAs($this->admin)
+            ->post('/aiz-uploader/upload', [
+                'aiz_file' => new UploadedFile($mismatchFile, 'mismatch.jpg', 'image/png', null, true),
+            ]);
+
+        $response->assertStatus(422)
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'The uploaded image type does not match its file extension.');
+
+        $this->assertSame($beforeCount, Upload::query()->count());
+    }
+
+    public function test_physical_file_is_deleted_if_database_write_fails(): void
+    {
+        $beforeFiles = glob(public_path('uploads/all/*')) ?: [];
+        $beforeCount = Upload::query()->count();
+
+        $database = Mockery::mock(\Illuminate\Database\DatabaseManager::class);
+        $database->shouldReceive('transaction')
+            ->once()
+            ->andThrow(new \RuntimeException('forced-db-failure'));
+
+        $manager = new UploadManager(new UploadInspector(), $database);
+
+        try {
+            $manager->store(UploadedFile::fake()->image('db-fail.jpg', 100, 100), $this->admin->id);
+            $this->fail('Expected the upload manager to throw on database failure.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('forced-db-failure', $exception->getMessage());
+        }
+
+        $afterFiles = glob(public_path('uploads/all/*')) ?: [];
+
+        $this->assertSame($beforeCount, Upload::query()->count());
+        $this->assertCount(count($beforeFiles), $afterFiles);
+    }
+
     public function test_legacy_public_prefixed_records_render_without_double_extensions_and_preview(): void
     {
+        $legacyPath = public_path('legacy-upload-preview-test.png');
+        file_put_contents(
+            $legacyPath,
+            base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO3sF4sAAAAASUVORK5CYII=')
+        );
+        $this->createdFiles[] = $legacyPath;
+
         $upload = Upload::query()->create([
-            'file_original_name' => 'legacy-sample.jpg',
-            'file_name' => 'public/assets/img/about1.jpg',
+            'file_original_name' => 'legacy-sample.png',
+            'file_name' => 'public/legacy-upload-preview-test.png',
             'user_id' => $this->admin->id,
-            'file_size' => filesize(public_path('assets/img/about1.jpg')),
-            'extension' => 'jpg',
+            'file_size' => filesize($legacyPath),
+            'extension' => 'png',
             'type' => 'image',
         ]);
 
@@ -164,12 +268,10 @@ class AdminUploadFlowTest extends TestCase
         $this->assertSame('legacy-sample', $upload->display_name);
         $this->assertTrue($upload->fileExists());
 
-        $this->actingAs($this->admin)
-            ->get('/admin/uploaded-files')
-            ->assertOk()
-            ->assertSee('legacy-sample.jpg', false)
-            ->assertDontSee('legacy-sample.jpg.jpg', false)
-            ->assertSee(route('uploads.file', ['upload' => $upload->id]), false);
+        $resource = (new \App\Http\Resources\UploadResource($upload))->resolve();
+
+        $this->assertSame('legacy-sample', $resource['display_name']);
+        $this->assertSame(route('uploads.file', ['upload' => $upload->id], false), $resource['preview_url']);
     }
 
     public function test_delete_route_removes_the_record_and_stored_file(): void

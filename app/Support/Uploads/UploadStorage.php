@@ -221,6 +221,30 @@ class UploadStorage
         }
     }
 
+    public static function size($path): ?int
+    {
+        $absolutePath = static::absolutePath($path);
+
+        if (!$absolutePath || !is_file($absolutePath)) {
+            return null;
+        }
+
+        $size = @filesize($absolutePath);
+
+        return $size === false ? null : (int) $size;
+    }
+
+    public static function hash($path, string $algo = 'sha256'): ?string
+    {
+        $absolutePath = static::absolutePath($path);
+
+        if (!$absolutePath || !is_file($absolutePath)) {
+            return null;
+        }
+
+        return @hash_file($algo, $absolutePath) ?: null;
+    }
+
     public static function publicUrl($path, $secure = null): ?string
     {
         $normalizedPath = static::normalizePath($path);

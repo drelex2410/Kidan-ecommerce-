@@ -182,6 +182,30 @@ $.fn.toggleAttr = function (attr, attr1, attr2) {
             }
             return array.length + " " + fileText;
         },
+        uploadStatusBadgeHtml: function (file) {
+            if (file.file_missing) {
+                return '<span class="badge badge-danger mt-2">Missing file</span>';
+            }
+
+            if (file.processing_status && file.processing_status !== "ready") {
+                return '<span class="badge badge-warning mt-2 text-capitalize">' +
+                    file.processing_status.replace(/_/g, " ") +
+                    "</span>";
+            }
+
+            return "";
+        },
+        uploadStatusWarningHtml: function (file) {
+            if (file.file_missing) {
+                return '<p class="text-danger mb-0 mt-1">This file no longer exists in storage. Please re-upload it before saving.</p>';
+            }
+
+            if (file.processing_error) {
+                return '<p class="text-danger mb-0 mt-1">' + file.processing_error + "</p>";
+            }
+
+            return "";
+        },
         updateUploaderSelected: function () {
             $(".aiz-uploader-selected").html(
                 AIZ.uploader.updateFileHtml(AIZ.uploader.data.selectedFiles)
@@ -453,9 +477,11 @@ $.fn.toggleAttr = function (attr, attr1, attr2) {
                             data[i].extension +
                             "</span>" +
                             "</h6>" +
+                            AIZ.uploader.uploadStatusBadgeHtml(data[i]) +
                             "<p>" +
                             AIZ.extra.bytesToSize(data[i].file_size) +
                             "</p>" +
+                            AIZ.uploader.uploadStatusWarningHtml(data[i]) +
                             "</div>" +
                             "</div>" +
                             "</div>" +
@@ -525,11 +551,13 @@ $.fn.toggleAttr = function (attr, attr1, attr2) {
                                     data[i].extension +
                                     "</span>" +
                                     "</h6>" +
+                                    AIZ.uploader.uploadStatusBadgeHtml(data[i]) +
                                     "<p>" +
                                     AIZ.extra.bytesToSize(
                                         data[i].file_size
                                     ) +
                                     "</p>" +
+                                    AIZ.uploader.uploadStatusWarningHtml(data[i]) +
                                     "</div>" +
                                     '<div class="remove">' +
                                     '<button class="btn btn-sm btn-link remove-attachment" type="button">' +
@@ -811,11 +839,13 @@ $.fn.toggleAttr = function (attr, attr1, attr2) {
                                         data[i].extension +
                                         "</span>" +
                                         "</h6>" +
+                                        AIZ.uploader.uploadStatusBadgeHtml(data[i]) +
                                         "<p>" +
                                         AIZ.extra.bytesToSize(
                                             data[i].file_size
                                         ) +
                                         "</p>" +
+                                        AIZ.uploader.uploadStatusWarningHtml(data[i]) +
                                         "</div>" +
                                         '<div class="remove">' +
                                         '<button class="btn btn-sm btn-link remove-attachment" type="button">' +

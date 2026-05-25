@@ -4,11 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\UploadResource;
 use App\Models\Upload;
+use App\Services\Uploads\UploadManager;
 use App\Support\Uploads\UploadStorage;
+use App\Support\Uploads\UploadValidationException;
 use Auth;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Http\Request;
 use Response;
 
 class AizUploadController extends Controller
@@ -108,7 +109,7 @@ class AizUploadController extends Controller
         return view('uploader.aiz-uploader');
     }
 
-    public function upload(Request $request)
+    public function upload(Request $request, UploadManager $uploadManager)
     {
         if (!Auth::check()) {
             return response()->json([
@@ -117,31 +118,16 @@ class AizUploadController extends Controller
             ], 401);
         }
 
-        $validator = Validator::make($request->all(), [
-            'aiz_file' => [
-                'required',
-                'file',
-                'max:' . config('uploads.max_file_size_kb'),
-                'mimes:' . UploadStorage::allowedExtensionsString(),
-            ],
-        ], [
-            'aiz_file.required' => translate('No file was uploaded.'),
-            'aiz_file.file' => translate('The uploaded payload is invalid.'),
-            'aiz_file.max' => translate('The file exceeds the maximum allowed size.'),
-            'aiz_file.mimes' => translate('This file type is not supported.'),
-        ]);
-
-        if ($validator->fails()) {
+        if (!$request->hasFile('aiz_file')) {
             return response()->json([
                 'success' => false,
-                'message' => $validator->errors()->first('aiz_file') ?: translate('The file could not be uploaded.'),
-                'errors' => $validator->errors(),
+                'message' => translate('No file was uploaded.'),
+                'errors' => ['aiz_file' => [translate('No file was uploaded.')]],
             ], 422);
         }
 
         $file = $request->file('aiz_file');
-        $extension = strtolower($file->getClientOriginalExtension());
-        $type = UploadStorage::typeForExtension($extension);
+        $type = UploadStorage::typeForExtension(strtolower((string) $file->getClientOriginalExtension()));
 
         if (env('DEMO_MODE') == 'On' && $type === 'archive') {
             return response()->json([
@@ -150,25 +136,8 @@ class AizUploadController extends Controller
             ], 422);
         }
 
-        if ($type === null) {
-            return response()->json([
-                'success' => false,
-                'message' => translate('This file type is not supported.')
-            ], 422);
-        }
-
-        $storedPath = null;
-
         try {
-            $upload = new Upload;
-            $upload->file_original_name = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
-            $upload->extension = $extension;
-            $storedPath = UploadStorage::store($file);
-            $upload->file_name = $storedPath;
-            $upload->user_id = Auth::id();
-            $upload->type = $type;
-            $upload->file_size = $file->getSize();
-            $upload->save();
+            $upload = $uploadManager->store($file, (int) Auth::id());
 
             return response()->json([
                 'success' => true,
@@ -176,11 +145,13 @@ class AizUploadController extends Controller
                 'id' => $upload->id,
                 'file' => new UploadResource($upload),
             ]);
+        } catch (UploadValidationException $exception) {
+            return response()->json([
+                'success' => false,
+                'message' => $exception->getMessage(),
+                'errors' => $exception->errors(),
+            ], $exception->status());
         } catch (\Throwable $e) {
-            if ($storedPath) {
-                UploadStorage::delete($storedPath);
-            }
-
             report($e);
 
             return response()->json([

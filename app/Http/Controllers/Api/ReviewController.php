@@ -5,7 +5,8 @@ namespace App\Http\Controllers\Api;
 use App\Http\Resources\ReviewCollection;
 use App\Models\Product;
 use App\Models\Review;
-use App\Models\Upload;
+use App\Services\Uploads\UploadManager;
+use App\Support\Uploads\UploadValidationException;
 use App\Models\User;
 use Illuminate\Http\Request;
 
@@ -82,7 +83,7 @@ class ReviewController extends Controller
         ], 200);
     }
 
-    public function submit_review(Request $request)
+    public function submit_review(Request $request, UploadManager $uploadManager)
     {
         $user = User::find(auth('api')->user()->id);
         $old_review = Review::where('user_id', auth('api')->user()->id)->where('product_id', $request->product_id)->first();
@@ -104,24 +105,15 @@ class ReviewController extends Controller
 
         // image upload 
         if ($request->hasFile('avatar')) {
-            $upload = new Upload();
-            $upload->file_original_name = null;
-            $arr = explode('.', $request->file('avatar')->getClientOriginalName());
-
-            for ($i = 0; $i < count($arr) - 1; $i++) {
-                if ($i == 0) {
-                    $upload->file_original_name .= $arr[$i];
-                } else {
-                    $upload->file_original_name .= "." . $arr[$i];
-                }
+            try {
+                $upload = $uploadManager->store($request->file('avatar'), (int) $user->id);
+            } catch (UploadValidationException $exception) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $exception->getMessage(),
+                    'errors' => $exception->errors(),
+                ], $exception->status());
             }
-
-            $upload->file_name = $request->file('avatar')->store('uploads/all');
-            $upload->user_id = $user->id;
-            $upload->extension = $request->file('avatar')->getClientOriginalExtension();
-            $upload->type = 'image';
-            $upload->file_size = $request->file('avatar')->getSize();
-            $upload->save();
         }
         // end of image upload
         $rt = Review::updateOrCreate(

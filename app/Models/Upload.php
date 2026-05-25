@@ -15,7 +15,16 @@ class Upload extends Model
      * @var array
      */
     protected $fillable = [
-        'file_original_name', 'file_name', 'user_id', 'extension', 'type', 'file_size',
+        'file_original_name',
+        'file_name',
+        'user_id',
+        'extension',
+        'type',
+        'file_size',
+        'processing_status',
+        'processing_error',
+        'file_hash',
+        'mime_type',
     ];
 
     protected $appends = [
@@ -25,6 +34,7 @@ class Upload extends Model
         'display_name',
         'file_icon_class',
         'normalized_file_name',
+        'file_missing',
     ];
 
     public function user()
@@ -93,6 +103,11 @@ class Upload extends Model
     public function fileExists(): bool
     {
         return UploadStorage::exists($this->file_name);
+    }
+
+    public function getFileMissingAttribute(): bool
+    {
+        return !$this->fileExists();
     }
 
     public function absolutePath(): ?string

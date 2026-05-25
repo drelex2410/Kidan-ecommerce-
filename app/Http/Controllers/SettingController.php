@@ -11,6 +11,7 @@ use App\Models\User;
 use Artisan;
 use Illuminate\Contracts\Filesystem\FileNotFoundException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -272,6 +273,7 @@ class SettingController extends Controller
     public function update(Request $request)
     {
         $this->validateHomepageBannerSettings($request);
+        $updatedTypes = [];
 
         foreach ($request->types as $key => $type) {
             if ($type == 'timezone') {
@@ -285,9 +287,17 @@ class SettingController extends Controller
                     continue;
                 }
 
-                $this->persistSettingValue($type, $request->input($type));
+                $storedValue = $this->persistSettingValue($type, $request->input($type));
+                $updatedTypes[] = $type;
+                $this->logHomepageBannerWrite(
+                    settingsGroup: (string) $request->input('settings_group', ''),
+                    type: $type,
+                    storedValue: $storedValue
+                );
             }
         }
+
+        $this->forgetFrontendContentCache($updatedTypes);
 
         cache_clear();
 
@@ -314,7 +324,7 @@ class SettingController extends Controller
         return back();
     }
 
-    protected function persistSettingValue(string $type, $value): void
+    protected function persistSettingValue(string $type, $value)
     {
         $settings = Setting::query()
             ->where('type', $type)
@@ -329,7 +339,7 @@ class SettingController extends Controller
             $setting->type = $type;
             $setting->value = $storedValue;
             $setting->save();
-            return;
+            return $storedValue;
         }
 
         if ($settings->count() > 1) {
@@ -344,6 +354,8 @@ class SettingController extends Controller
             $setting->value = $storedValue;
             $setting->save();
         }
+
+        return $storedValue;
     }
 
     protected function normalizeSettingValue(string $type, $value, $existingValue)
@@ -623,6 +635,70 @@ class SettingController extends Controller
         if (!Str::startsWith($normalized, ['/', 'http://', 'https://', '#'])) {
             $messages[$field] = "{$label} must start with /, http://, https://, or #.";
         }
+    }
+
+    protected function forgetFrontendContentCache(array $types): void
+    {
+        $cacheKeys = [];
+
+        if (collect($types)->contains(fn (string $type) => $this->isHomepageBannerSetting($type))) {
+            $cacheKeys[] = 'v1.home.sliders';
+        }
+
+        if ($cacheKeys === []) {
+            return;
+        }
+
+        foreach (array_unique($cacheKeys) as $cacheKey) {
+            try {
+                Cache::forget($cacheKey);
+            } catch (\Throwable $exception) {
+            }
+        }
+
+        Log::debug('Homepage content cache invalidated after settings update', [
+            'updated_types' => array_values(array_unique($types)),
+            'cache_keys' => array_values(array_unique($cacheKeys)),
+        ]);
+    }
+
+    protected function isHomepageBannerSetting(string $type): bool
+    {
+        return Str::startsWith($type, [
+            'home_slider_',
+            'home_banner_',
+        ]);
+    }
+
+    protected function logHomepageBannerWrite(string $settingsGroup, string $type, mixed $storedValue): void
+    {
+        if (!$this->isHomepageBannerSetting($type)) {
+            return;
+        }
+
+        $slotCount = 0;
+        $nonEmptySlots = 0;
+
+        if (is_string($storedValue)) {
+            $decoded = json_decode($storedValue, true);
+            if (is_array($decoded)) {
+                $slotCount = count($decoded);
+                $nonEmptySlots = count(array_filter($decoded, fn ($value) => $value !== null && $value !== ''));
+            } elseif ($storedValue !== '') {
+                $slotCount = 1;
+                $nonEmptySlots = 1;
+            }
+        } elseif (is_array($storedValue)) {
+            $slotCount = count($storedValue);
+            $nonEmptySlots = count(array_filter($storedValue, fn ($value) => $value !== null && $value !== ''));
+        }
+
+        Log::debug('Homepage banner setting persisted', [
+            'settings_group' => $settingsGroup,
+            'type' => $type,
+            'slot_count' => $slotCount,
+            'non_empty_slots' => $nonEmptySlots,
+        ]);
     }
 
     public function updateActivationSettings(Request $request)

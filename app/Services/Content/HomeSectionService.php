@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Product;
 use App\Models\Shop;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 class HomeSectionService
@@ -29,39 +30,85 @@ class HomeSectionService
             'product_section_four' => $this->productSectionFour(),
             'product_section_five' => $this->productSectionFive(),
             'product_section_six' => $this->productSectionSix(),
-            'banner_section_one' => $this->bannerSection('home_banner_1_images', 'home_banner_1_links'),
+            'banner_section_one' => $this->bannerSection('home_banner_1_images', 'home_banner_1_links', 'banner_section_one'),
             'banner_section_two' => $this->fixedBannerSection('home_banner_2_images', 'home_banner_2_links', [
                 ['slot' => 'background', 'default_link' => null, 'clickable' => false],
                 ['slot' => 'product', 'default_link' => '/', 'clickable' => true],
-            ]),
-            'banner_section_three' => $this->bannerSection('home_banner_3_images', 'home_banner_3_links'),
-            'banner_section_four' => $this->fixedBannerSection('home_banner_4_images', 'home_banner_4_links', [
-                ['slot' => 'slide_1', 'default_link' => '/', 'clickable' => true],
-                ['slot' => 'slide_2', 'default_link' => '/', 'clickable' => true],
-                ['slot' => 'slide_3', 'default_link' => '/', 'clickable' => true],
-                ['slot' => 'newsletter', 'default_link' => null, 'clickable' => false],
-            ]),
+            ], 'banner_section_two'),
+            'banner_section_three' => $this->bannerSectionThree(),
+            'banner_section_four' => $this->bannerSectionFour(),
             'home_about_text' => $this->homeAboutText(),
             'shop_section_one' => $this->shopSection(1),
             'shop_section_two' => $this->shopSection(2),
             'shop_section_three' => $this->shopSection(3),
             'shop_section_four' => $this->shopSection(4),
             'shop_section_five' => $this->shopSection(5),
-            'shop_banner_section_one' => $this->bannerSection('home_shop_banner_1_images', 'home_shop_banner_1_links'),
-            'shop_banner_section_two' => $this->bannerSection('home_shop_banner_2_images', 'home_shop_banner_2_links'),
-            'shop_banner_section_three' => $this->bannerSection('home_shop_banner_3_images', 'home_shop_banner_3_links'),
+            'shop_banner_section_one' => $this->bannerSection('home_shop_banner_1_images', 'home_shop_banner_1_links', 'shop_banner_section_one'),
+            'shop_banner_section_two' => $this->bannerSection('home_shop_banner_2_images', 'home_shop_banner_2_links', 'shop_banner_section_two'),
+            'shop_banner_section_three' => $this->bannerSection('home_shop_banner_3_images', 'home_shop_banner_3_links', 'shop_banner_section_three'),
             default => throw new NotFoundHttpException('Home section not found.'),
         };
+    }
+
+    private function bannerSectionFour(): array
+    {
+        $slots = [
+            ['slot' => 'slide_1', 'default_link' => '/', 'clickable' => true],
+            ['slot' => 'slide_2', 'default_link' => '/', 'clickable' => true],
+            ['slot' => 'slide_3', 'default_link' => '/', 'clickable' => true],
+            ['slot' => 'newsletter', 'default_link' => null, 'clickable' => false],
+        ];
+
+        $current = $this->fixedBannerSection(
+            'home_banner_4_images',
+            'home_banner_4_links',
+            $slots,
+            'banner_section_four'
+        );
+
+        if ($this->payloadHasImage($current)) {
+            return $current;
+        }
+
+        return $this->fixedBannerSection(
+            'home_banner_3_images',
+            'home_banner_3_links',
+            $slots,
+            'banner_section_four',
+            'home_banner_3_compat'
+        );
+    }
+
+    private function bannerSectionThree(): array
+    {
+        $currentBannerThree = $this->bannerSection(
+            'home_banner_4_images',
+            'home_banner_4_links',
+            'banner_section_three',
+            'home_banner_4_alias',
+            3
+        );
+
+        if ($currentBannerThree !== []) {
+            return $currentBannerThree;
+        }
+
+        return $this->bannerSection(
+            'home_banner_3_images',
+            'home_banner_3_links',
+            'banner_section_three',
+            'home_banner_3_legacy'
+        );
     }
 
     private function sliders(): array
     {
         return Cache::remember('v1.home.sliders', 86400, function (): array {
             return [
-                'one' => $this->bannerSection('home_slider_1_images', 'home_slider_1_links'),
-                'two' => $this->bannerSection('home_slider_2_images', 'home_slider_2_links'),
-                'three' => $this->bannerSection('home_slider_3_images', 'home_slider_3_links'),
-                'four' => $this->bannerSection('home_slider_4_images', 'home_slider_4_links'),
+                'one' => $this->bannerSection('home_slider_1_images', 'home_slider_1_links', 'sliders.one'),
+                'two' => $this->bannerSection('home_slider_2_images', 'home_slider_2_links', 'sliders.two'),
+                'three' => $this->bannerSection('home_slider_3_images', 'home_slider_3_links', 'sliders.three'),
+                'four' => $this->bannerSection('home_slider_4_images', 'home_slider_4_links', 'sliders.four'),
             ];
         });
     }
@@ -185,38 +232,76 @@ class HomeSectionService
         });
     }
 
-    private function bannerSection(string $imagesSettingKey, string $linksSettingKey): array
+    private function bannerSection(
+        string $imagesSettingKey,
+        string $linksSettingKey,
+        ?string $sectionName = null,
+        string $source = 'primary',
+        ?int $limit = null
+    ): array
     {
         $imageIds = $this->decodeSettingArray(get_setting($imagesSettingKey));
         $links = $this->decodeSettingArray(get_setting($linksSettingKey));
 
-        return collect($imageIds)->map(function ($imageId, $index) use ($links) {
+        if ($limit !== null) {
+            $imageIds = array_slice($imageIds, 0, $limit);
+            $links = array_slice($links, 0, $limit);
+        }
+
+        $payload = collect($imageIds)->map(function ($imageId, $index) use ($links) {
             return [
                 'img' => $this->contentMedia->asset($imageId),
                 'link' => $this->normalizeBannerLink($links[$index] ?? null),
             ];
         })->filter(fn ($banner) => $banner['img'] !== null)->values()->all();
+
+        $this->logBannerSectionRead(
+            sectionName: $sectionName ?? $imagesSettingKey,
+            imagesSettingKey: $imagesSettingKey,
+            linksSettingKey: $linksSettingKey,
+            payload: $payload,
+            source: $source
+        );
+
+        return $payload;
     }
 
-    private function fixedBannerSection(string $imagesSettingKey, string $linksSettingKey, array $slots): array
+    private function fixedBannerSection(
+        string $imagesSettingKey,
+        string $linksSettingKey,
+        array $slots,
+        ?string $sectionName = null,
+        string $source = 'primary'
+    ): array
     {
         $imageIds = $this->decodeSettingArray(get_setting($imagesSettingKey));
         $links = $this->decodeSettingArray(get_setting($linksSettingKey));
 
-        return collect($slots)->map(function (array $slot, int $index) use ($imageIds, $links) {
+        $payload = collect($slots)->map(function (array $slot, int $index) use ($imageIds, $links) {
             $imageId = $imageIds[$index] ?? null;
             $link = $links[$index] ?? null;
             $defaultLink = array_key_exists('default_link', $slot) ? $slot['default_link'] : '/';
             $isClickable = (bool) ($slot['clickable'] ?? true);
+            $resolvedImage = $this->contentMedia->asset($imageId);
 
             return [
                 'slot' => $slot['slot'],
-                'img' => $this->contentMedia->asset($imageId),
+                'img' => $resolvedImage,
                 'link' => $isClickable ? $this->normalizeBannerLink($link, $defaultLink) : null,
                 'is_clickable' => $isClickable,
-                'missing_image' => empty($imageId),
+                'missing_image' => empty($resolvedImage),
             ];
         })->values()->all();
+
+        $this->logBannerSectionRead(
+            sectionName: $sectionName ?? $imagesSettingKey,
+            imagesSettingKey: $imagesSettingKey,
+            linksSettingKey: $linksSettingKey,
+            payload: $payload,
+            source: $source
+        );
+
+        return $payload;
     }
 
     private function manualProducts(string $settingKey)
@@ -263,5 +348,41 @@ class HomeSectionService
         }
 
         return $normalized;
+    }
+
+    private function payloadHasImage(array $payload): bool
+    {
+        return collect($payload)->contains(fn (array $item) => !empty($item['img']));
+    }
+
+    private function logBannerSectionRead(
+        string $sectionName,
+        string $imagesSettingKey,
+        string $linksSettingKey,
+        array $payload,
+        string $source = 'primary'
+    ): void {
+        $resolvedImages = collect($payload)->filter(fn (array $item) => !empty($item['img']))->count();
+        $missingSlots = collect($payload)
+            ->filter(function (array $item) {
+                if (array_key_exists('missing_image', $item)) {
+                    return (bool) $item['missing_image'];
+                }
+
+                return empty($item['img']);
+            })
+            ->map(fn (array $item, int $index) => $item['slot'] ?? $index)
+            ->values()
+            ->all();
+
+        Log::debug('Homepage banner section resolved', [
+            'section' => $sectionName,
+            'images_setting_key' => $imagesSettingKey,
+            'links_setting_key' => $linksSettingKey,
+            'source' => $source,
+            'item_count' => count($payload),
+            'resolved_image_count' => $resolvedImages,
+            'missing_slots' => $missingSlots,
+        ]);
     }
 }

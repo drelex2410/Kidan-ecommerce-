@@ -142,6 +142,54 @@ class PhaseFiveContentTest extends TestCase
             ->assertJsonPath('data.3.link', null);
     }
 
+    public function test_banner_section_three_endpoint_falls_back_to_current_banner_four_settings(): void
+    {
+        $response = $this->getJson('/api/v1/setting/home/banner_section_three');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.0.img', $this->uploadPath(3))
+            ->assertJsonPath('data.0.link', '/slide-1')
+            ->assertJsonPath('data.2.img', $this->uploadPath(5))
+            ->assertJsonPath('data.2.link', '/slide-3');
+    }
+
+    public function test_banner_section_four_endpoint_falls_back_to_legacy_banner_three_settings(): void
+    {
+        DB::table('settings')->where('type', 'home_banner_4_images')->update([
+            'value' => null,
+        ]);
+
+        DB::table('settings')->where('type', 'home_banner_4_links')->update([
+            'value' => null,
+        ]);
+
+        DB::table('settings')->insert([
+            [
+                'type' => 'home_banner_3_images',
+                'value' => json_encode([3, 4, 5]),
+            ],
+            [
+                'type' => 'home_banner_3_links',
+                'value' => json_encode(['/legacy-slide-1', '/legacy-slide-2', '/legacy-slide-3']),
+            ],
+        ]);
+
+        Cache::forget('settings');
+
+        $response = $this->getJson('/api/v1/setting/home/banner_section_four');
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.0.slot', 'slide_1')
+            ->assertJsonPath('data.0.img', $this->uploadPath(3))
+            ->assertJsonPath('data.0.link', '/legacy-slide-1')
+            ->assertJsonPath('data.2.img', $this->uploadPath(5))
+            ->assertJsonPath('data.2.link', '/legacy-slide-3')
+            ->assertJsonPath('data.3.slot', 'newsletter')
+            ->assertJsonPath('data.3.img', null);
+    }
+
     public function test_home_product_section_endpoint_returns_title_and_products(): void
     {
         [$product] = $this->seedCatalogContent();

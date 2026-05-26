@@ -3,6 +3,7 @@
 return [
     'sandbox_base_url' => env('ALATPAY_SANDBOX_BASE_URL', 'https://wema-alatdev-apimgt.developer.azure-api.net'),
     'production_base_url' => env('ALATPAY_PRODUCTION_BASE_URL', env('ALATPAY_BASE_URL', 'https://wema-alatdev-apimgt.developer.azure-api.net')),
+    'plugin_script_url' => env('ALATPAY_PLUGIN_SCRIPT_URL', 'https://web.alatpay.ng/js/alatpay.js'),
     'signature_tolerance_seconds' => (int) env('ALATPAY_SIGNATURE_TOLERANCE_SECONDS', 600),
     'paths' => [
         'virtual_account' => env('ALATPAY_VIRTUAL_ACCOUNT_PATH', '/api/v1/bankTransfer/virtualAccount'),

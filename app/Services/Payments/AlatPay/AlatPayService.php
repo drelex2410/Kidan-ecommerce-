@@ -32,6 +32,17 @@ class AlatPayService
     {
         $this->assertReadyForInitialization($payment);
 
+        if ($this->config->webPluginReady()) {
+            return $this->initializePluginPayment($payment);
+        }
+
+        return $this->initializeVirtualAccountPayment($payment);
+    }
+
+    private function initializeVirtualAccountPayment(Payment $payment): AlatPayTransaction
+    {
+        $this->assertReadyForInitialization($payment);
+
         $existing = AlatPayTransaction::query()
             ->where('payment_id', $payment->id)
             ->whereIn('status', ['pending', 'processing'])
@@ -142,15 +153,107 @@ class AlatPayService
         return $transaction;
     }
 
+    private function initializePluginPayment(Payment $payment): AlatPayTransaction
+    {
+        $existing = AlatPayTransaction::query()
+            ->where('payment_id', $payment->id)
+            ->whereIn('status', ['pending', 'processing'])
+            ->latest('id')
+            ->first();
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $order = $payment->combinedOrder ?: ($payment->order_code
+            ? CombinedOrder::query()->where('code', $payment->order_code)->first()
+            : null);
+
+        $reference = $this->transformer->merchantReference($payment);
+        $sessionReference = $this->transformer->sessionReference($payment);
+        $dto = $this->transformer->toInitializationData($payment, $order, $this->config);
+        $paymentChannel = 'web_plugin';
+
+        $transaction = DB::transaction(function () use ($payment, $reference, $sessionReference, $paymentChannel, $dto): AlatPayTransaction {
+            $paymentMeta = array_merge($payment->meta ?? [], [
+                'order_id' => $payment->combined_order_id,
+                'order_code' => $payment->order_code,
+                'escrow_id' => Arr::get($payment->meta ?? [], 'escrow_id'),
+                'user_id' => $payment->user_id,
+                'tenant_id' => Arr::get($payment->meta ?? [], 'tenant_id'),
+                'payment_channel' => $paymentChannel,
+                'currency' => $payment->currency,
+                'amount' => (float) $payment->amount,
+                'session_reference' => $sessionReference,
+            ]);
+
+            $payment->update([
+                'status' => 'pending',
+                'meta' => $paymentMeta,
+            ]);
+
+            $transaction = AlatPayTransaction::query()->create([
+                'payment_id' => $payment->id,
+                'user_id' => $payment->user_id,
+                'combined_order_id' => $payment->combined_order_id,
+                'reference' => $reference,
+                'transaction_id' => null,
+                'provider_reference' => null,
+                'provider_record_id' => null,
+                'merchant_id' => $this->config->merchantId(),
+                'order_code' => $payment->order_code,
+                'order_identifier' => $reference,
+                'tenant_id' => Arr::get($paymentMeta, 'tenant_id'),
+                'escrow_id' => Arr::get($paymentMeta, 'escrow_id'),
+                'session_reference' => $sessionReference,
+                'payment_channel' => $paymentChannel,
+                'currency' => $payment->currency ?: 'NGN',
+                'amount' => $payment->amount,
+                'environment' => $this->config->environment(),
+                'status' => 'pending',
+                'checkout_url' => null,
+                'instructions' => $this->buildPluginInstructionPayload($payment, $dto->toArray()),
+                'provider_payload' => null,
+                'metadata' => $paymentMeta,
+            ]);
+
+            $transaction->update([
+                'checkout_url' => $this->routes->checkout($transaction),
+            ]);
+
+            return $transaction->fresh();
+        });
+
+        $this->recordPaymentEvent($payment, 'alatpay.plugin.initialized', $reference, 'pending', [
+            'checkout_mode' => 'web_plugin',
+            'public_key_present' => filled($this->config->publicKey()),
+        ]);
+
+        Log::info('ALATPay plugin checkout initialized.', [
+            'gateway' => 'alatpay',
+            'transaction_reference' => $reference,
+            'order_id' => $payment->order_code,
+            'user_id' => $payment->user_id,
+            'environment' => $this->config->environment(),
+        ]);
+
+        return $transaction;
+    }
+
     public function checkoutData(AlatPayTransaction $transaction): array
     {
-        $transaction->loadMissing('payment');
+        $transaction->loadMissing(['payment.user', 'combinedOrder']);
+
+        $checkoutMode = $this->usesWebPlugin($transaction) ? 'web_plugin' : 'virtual_account';
 
         return [
             'transaction' => $transaction,
             'instructions' => $transaction->instructions ?? [],
             'status_url' => $this->routes->status($transaction),
             'verify_url' => $this->routes->verify($transaction),
+            'checkout_mode' => $checkoutMode,
+            'plugin_script_url' => $checkoutMode === 'web_plugin' ? $this->config->pluginScriptUrl() : null,
+            'plugin_payload' => $checkoutMode === 'web_plugin' ? $this->pluginPayload($transaction) : null,
         ];
     }
 
@@ -160,6 +263,11 @@ class AlatPayService
             ->with('payment')
             ->where('reference', $reference)
             ->firstOrFail();
+    }
+
+    public function shouldQueueDeferredReconciliation(AlatPayTransaction $transaction): bool
+    {
+        return !$this->usesWebPlugin($transaction);
     }
 
     public function statusPayload(AlatPayTransaction $transaction, bool $forceReconcile = false): array
@@ -190,8 +298,12 @@ class AlatPayService
         ];
     }
 
-    public function verify(AlatPayTransaction $transaction): array
+    public function verify(AlatPayTransaction $transaction, array $pluginResponse = []): array
     {
+        if ($pluginResponse !== []) {
+            $this->capturePluginResponse($transaction, $pluginResponse);
+        }
+
         $statusData = $this->reconciliationService->reconcile($transaction, 'manual_verify');
         $this->applyStatusData($transaction, $statusData, 'verify');
 
@@ -376,6 +488,45 @@ class AlatPayService
             : $client->post($url, $payload);
     }
 
+    private function usesWebPlugin(AlatPayTransaction $transaction): bool
+    {
+        return $this->config->webPluginReady()
+            && data_get($transaction->instructions ?? [], 'checkout_mode') === 'web_plugin';
+    }
+
+    private function pluginPayload(AlatPayTransaction $transaction): array
+    {
+        $payment = $transaction->payment;
+        if (!$payment) {
+            throw new HttpException(422, 'ALATPay payment session is missing.');
+        }
+
+        $order = $transaction->combinedOrder;
+        if (!$order && $payment->order_code) {
+            $order = CombinedOrder::query()->where('code', $payment->order_code)->first();
+        }
+
+        $dto = $this->transformer->toInitializationData($payment, $order, $this->config);
+
+        return [
+            'apiKey' => $this->config->publicKey(),
+            'businessId' => $dto->businessId,
+            'email' => $dto->customer->email,
+            'phone' => $dto->customer->phone,
+            'firstName' => $dto->customer->firstName,
+            'lastName' => $dto->customer->lastName,
+            'currency' => $dto->currency,
+            'amount' => $dto->amount,
+            'orderId' => $transaction->reference,
+            'description' => $dto->description,
+            'channel' => $dto->channel,
+            'metadata' => array_merge($dto->metadata, [
+                'alatpay_reference' => $transaction->reference,
+                'session_reference' => $transaction->session_reference,
+            ]),
+        ];
+    }
+
     private function buildInstructionPayload(Payment $payment, array $data): array
     {
         return [
@@ -391,6 +542,68 @@ class AlatPayService
             'expires_at' => data_get($data, 'expiredAt'),
             'transaction_id' => data_get($data, 'transactionId'),
         ];
+    }
+
+    private function buildPluginInstructionPayload(Payment $payment, array $data): array
+    {
+        return [
+            'checkout_mode' => 'web_plugin',
+            'business_name' => config('app.name'),
+            'amount' => (float) data_get($data, 'amount', $payment->amount),
+            'currency' => data_get($data, 'currency', $payment->currency),
+            'order_id' => data_get($data, 'orderId'),
+            'description' => data_get($data, 'description'),
+            'customer' => data_get($data, 'customer'),
+        ];
+    }
+
+    private function capturePluginResponse(AlatPayTransaction $transaction, array $payload): void
+    {
+        $statusCandidate = data_get($payload, 'data.status');
+        if ($statusCandidate === null) {
+            $statusCandidate = data_get($payload, 'status');
+        }
+
+        $normalizedStatus = is_bool($statusCandidate)
+            ? ($statusCandidate ? 'processing' : 'failed')
+            : $this->transformer->normalizeStatus(is_scalar($statusCandidate) ? (string) $statusCandidate : null);
+
+        $transactionId = $this->firstString([
+            data_get($payload, 'data.transactionId'),
+            data_get($payload, 'transactionId'),
+            data_get($payload, 'data.nipTransaction.transactionId'),
+            data_get($payload, 'nipTransaction.transactionId'),
+        ]);
+
+        $providerReference = $this->firstString([
+            data_get($payload, 'data.sessionId'),
+            data_get($payload, 'sessionId'),
+            data_get($payload, 'data.nipTransaction.paymentreference'),
+            data_get($payload, 'paymentreference'),
+            data_get($payload, 'reference'),
+        ]);
+
+        $providerRecordId = $this->firstString([
+            data_get($payload, 'data.id'),
+            data_get($payload, 'id'),
+        ]);
+
+        $transaction->update([
+            'transaction_id' => $transactionId ?: $transaction->transaction_id,
+            'provider_reference' => $providerReference ?: $transaction->provider_reference,
+            'provider_record_id' => $providerRecordId ?: $transaction->provider_record_id,
+            'status' => in_array($normalizedStatus, ['failed', 'cancelled', 'reversed'], true) ? $normalizedStatus : $transaction->status,
+            'provider_payload' => $payload,
+            'last_reconciled_at' => now(),
+        ]);
+
+        $this->recordPaymentEvent(
+            $transaction->payment,
+            'alatpay.plugin.response',
+            $providerReference ?: $transactionId ?: $transaction->reference,
+            $normalizedStatus,
+            $payload
+        );
     }
 
     private function applyStatusData(
@@ -607,6 +820,17 @@ class AlatPayService
         foreach ($candidates as $candidate) {
             if (is_numeric($candidate)) {
                 return (float) $candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private function firstString(array $candidates): ?string
+    {
+        foreach ($candidates as $candidate) {
+            if (is_string($candidate) && trim($candidate) !== '') {
+                return trim($candidate);
             }
         }
 

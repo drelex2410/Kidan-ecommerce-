@@ -16,6 +16,8 @@ class AlatPayConfig
         'environment' => 'alatpay_env',
         'base_url' => 'alatpay_base_url',
         'merchant_id' => 'alatpay_merchant_id',
+        'public_key' => 'alatpay_public_key',
+        'plugin_script_url' => 'alatpay_plugin_script_url',
         'client_id' => 'alatpay_client_id',
         'client_secret' => 'alatpay_client_secret',
         'subscription_key' => 'alatpay_subscription_key',
@@ -64,7 +66,14 @@ class AlatPayConfig
             return rtrim($configured, '/');
         }
 
-        return rtrim($this->environment() === 'production'
+        return $this->defaultBaseUrlForEnvironment($this->environment());
+    }
+
+    public function defaultBaseUrlForEnvironment(?string $environment = null): string
+    {
+        $env = strtolower((string) ($environment ?: $this->environment()));
+
+        return rtrim($env === 'production'
             ? config('alatpay.production_base_url')
             : config('alatpay.sandbox_base_url'), '/');
     }
@@ -87,6 +96,26 @@ class AlatPayConfig
         return $this->nullableString($this->setting('client_id', env('ALATPAY_CLIENT_ID')));
     }
 
+    public function publicKey(): ?string
+    {
+        if ($override = $this->productionOverride('public_key')) {
+            return $override;
+        }
+
+        return $this->nullableString($this->setting('public_key', env('ALATPAY_PUBLIC_KEY')));
+    }
+
+    public function pluginScriptUrl(): ?string
+    {
+        if ($override = $this->productionOverride('plugin_script_url')) {
+            return $override;
+        }
+
+        return $this->nullableString(
+            $this->setting('plugin_script_url', env('ALATPAY_PLUGIN_SCRIPT_URL', config('alatpay.plugin_script_url')))
+        );
+    }
+
     public function clientSecret(): ?string
     {
         if ($override = $this->productionOverride('client_secret')) {
@@ -94,6 +123,11 @@ class AlatPayConfig
         }
 
         return $this->nullableString($this->setting('client_secret', env('ALATPAY_CLIENT_SECRET')));
+    }
+
+    public function secretKey(): ?string
+    {
+        return $this->clientSecret();
     }
 
     public function subscriptionKey(): ?string
@@ -166,10 +200,20 @@ class AlatPayConfig
     public function isConfigured(): bool
     {
         return filled($this->merchantId())
-            && filled($this->clientId())
-            && filled($this->clientSecret())
-            && filled($this->subscriptionKey())
+            && filled($this->secretKey())
             && filled($this->baseUrl());
+    }
+
+    public function webPluginReady(): bool
+    {
+        return $this->isConfigured()
+            && filled($this->publicKey())
+            && filled($this->pluginScriptUrl());
+    }
+
+    public function checkoutFlow(): string
+    {
+        return $this->webPluginReady() ? 'web_plugin' : 'virtual_account';
     }
 
     public function authHeaders(): array
@@ -202,16 +246,20 @@ class AlatPayConfig
     public function save(array $validated): void
     {
         $pairs = [
-            'enabled' => (string) ((int) ($validated['alatpay_payment'] ?? 0)),
-            'environment' => $validated['alatpay_env'],
-            'base_url' => $validated['alatpay_base_url'],
-            'merchant_id' => $validated['alatpay_merchant_id'] ?? null,
-            'client_id' => $validated['alatpay_client_id'] ?? null,
-            'callback_url' => $validated['alatpay_callback_url'] ?? $this->routes->webhook(),
-            'supported_currencies' => json_encode($validated['alatpay_supported_currencies']),
-            'charge_type' => $validated['alatpay_charge_type'],
-            'charge_flat' => (string) $validated['alatpay_charge_flat'],
-            'charge_percent' => (string) $validated['alatpay_charge_percent'],
+            'enabled' => array_key_exists('alatpay_payment', $validated)
+                ? (string) ((int) $validated['alatpay_payment'])
+                : (string) ((int) $this->enabled()),
+            'environment' => $validated['alatpay_env'] ?? $this->environment(),
+            'base_url' => $validated['alatpay_base_url'] ?? $this->baseUrl(),
+            'merchant_id' => $validated['alatpay_merchant_id'] ?? $this->merchantId(),
+            'public_key' => $validated['alatpay_public_key'] ?? $this->publicKey(),
+            'plugin_script_url' => $validated['alatpay_plugin_script_url'] ?? $this->pluginScriptUrl(),
+            'client_id' => $validated['alatpay_client_id'] ?? $this->clientId(),
+            'callback_url' => $validated['alatpay_callback_url'] ?? $this->callbackUrl(),
+            'supported_currencies' => json_encode($validated['alatpay_supported_currencies'] ?? $this->supportedCurrencies()),
+            'charge_type' => $validated['alatpay_charge_type'] ?? $this->chargeType(),
+            'charge_flat' => (string) ($validated['alatpay_charge_flat'] ?? $this->chargeFlat()),
+            'charge_percent' => (string) ($validated['alatpay_charge_percent'] ?? $this->chargePercent()),
         ];
 
         foreach ($pairs as $key => $value) {
@@ -254,10 +302,14 @@ class AlatPayConfig
                 'base_url' => $this->baseUrl(),
                 'callback_url' => $this->callbackUrl(),
                 'supported_currencies' => $this->supportedCurrencies(),
+                'checkout_flow' => $this->checkoutFlow(),
+                'web_plugin_ready' => $this->webPluginReady(),
                 'last_webhook_received_at' => $lastWebhook?->received_at,
                 'last_successful_transaction_at' => $lastSuccess?->completed_at,
                 'last_successful_reference' => $lastSuccess?->reference,
                 'gateway_status' => $this->enabled() && $this->isConfigured() ? 'ready' : 'incomplete',
+                'public_key_configured' => filled($this->publicKey()),
+                'plugin_script_url' => $this->pluginScriptUrl(),
                 'has_client_secret' => $secretState['client_secret'],
                 'has_subscription_key' => $secretState['subscription_key'],
                 'has_webhook_secret' => $secretState['webhook_secret'],
@@ -321,6 +373,8 @@ class AlatPayConfig
         return match ($alias) {
             'base_url' => $this->nullableString(env('ALATPAY_BASE_URL', config('alatpay.production_base_url'))),
             'merchant_id' => $this->nullableString(env('ALATPAY_MERCHANT_ID')),
+            'public_key' => $this->nullableString(env('ALATPAY_PUBLIC_KEY')),
+            'plugin_script_url' => $this->nullableString(env('ALATPAY_PLUGIN_SCRIPT_URL', config('alatpay.plugin_script_url'))),
             'client_id' => $this->nullableString(env('ALATPAY_CLIENT_ID')),
             'client_secret' => $this->nullableString(env('ALATPAY_CLIENT_SECRET')),
             'subscription_key' => $this->nullableString(env('ALATPAY_SUBSCRIPTION_KEY')),

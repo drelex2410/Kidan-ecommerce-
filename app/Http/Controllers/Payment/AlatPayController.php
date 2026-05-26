@@ -26,7 +26,9 @@ class AlatPayController extends Controller
         $payment = Payment::query()->findOrFail($paymentId);
         $transaction = $this->alatPayService->initializePayment($payment);
 
-        ReconcileAlatPayTransactionJob::dispatch($transaction->id)->delay(now()->addMinutes(5));
+        if ($this->alatPayService->shouldQueueDeferredReconciliation($transaction)) {
+            ReconcileAlatPayTransactionJob::dispatch($transaction->id)->delay(now()->addMinutes(5));
+        }
 
         return redirect()->route('alatpay.checkout', ['reference' => $transaction->reference]);
     }
@@ -47,10 +49,13 @@ class AlatPayController extends Controller
         );
     }
 
-    public function verify(string $reference): JsonResponse
+    public function verify(string $reference, Request $request): JsonResponse
     {
         $transaction = $this->alatPayService->findTransactionByReferenceOrFail($reference);
+        $pluginResponse = $request->input('plugin_response');
 
-        return response()->json($this->alatPayService->verify($transaction));
+        return response()->json(
+            $this->alatPayService->verify($transaction, is_array($pluginResponse) ? $pluginResponse : [])
+        );
     }
 }

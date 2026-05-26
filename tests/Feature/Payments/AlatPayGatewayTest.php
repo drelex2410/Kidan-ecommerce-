@@ -49,6 +49,8 @@ class AlatPayGatewayTest extends TestCase
             'alatpay_env' => 'sandbox',
             'alatpay_base_url' => 'https://sandbox.alatpay.example',
             'alatpay_merchant_id' => 'merchant_123',
+            'alatpay_public_key' => 'public-key-123',
+            'alatpay_plugin_script_url' => 'https://cdn.example.com/alatpay.js',
             'alatpay_client_id' => 'client_123',
             'alatpay_client_secret' => 'super-secret',
             'alatpay_subscription_key' => 'sub-key',
@@ -65,6 +67,9 @@ class AlatPayGatewayTest extends TestCase
         $this->assertNotSame('super-secret', $storedSecret);
         $this->assertSame('super-secret', $config->clientSecret());
         $this->assertSame(['NGN', 'USD'], $config->supportedCurrencies());
+        $this->assertSame('public-key-123', $config->publicKey());
+        $this->assertSame('https://cdn.example.com/alatpay.js', $config->pluginScriptUrl());
+        $this->assertTrue($config->webPluginReady());
 
         $config->save([
             'alatpay_env' => 'sandbox',
@@ -169,6 +174,106 @@ class AlatPayGatewayTest extends TestCase
         ]);
 
         Queue::assertPushed(ReconcileAlatPayTransactionJob::class);
+    }
+
+    public function test_web_initialization_uses_plugin_checkout_when_web_plugin_is_configured(): void
+    {
+        Queue::fake();
+        Http::fake();
+
+        app(AlatPayConfig::class)->save([
+            'alatpay_env' => 'sandbox',
+            'alatpay_base_url' => 'https://sandbox.alatpay.example',
+            'alatpay_merchant_id' => 'merchant_123',
+            'alatpay_public_key' => 'public-key-123',
+            'alatpay_plugin_script_url' => 'https://cdn.example.com/alatpay.js',
+            'alatpay_client_id' => 'client_123',
+            'alatpay_client_secret' => 'super-secret',
+            'alatpay_subscription_key' => 'sub-key',
+            'alatpay_callback_url' => 'https://example.com/api/v1/payment/alatpay/webhook',
+            'alatpay_webhook_secret' => 'webhook-secret',
+            'alatpay_supported_currencies' => ['NGN'],
+            'alatpay_charge_type' => 'percentage',
+            'alatpay_charge_flat' => 0,
+            'alatpay_charge_percent' => 0,
+        ]);
+
+        $user = $this->createUser();
+        $combinedOrder = $this->createCombinedOrder($user, 'unpaid');
+
+        $response = $this->actingAs($user)->get('/payment/alatpay/pay?' . http_build_query([
+            'redirect_to' => '/checkout',
+            'payment_method' => 'alatpay',
+            'payment_type' => 'cart_payment',
+            'user_id' => $user->id,
+            'order_code' => $combinedOrder->code,
+            'currency' => 'NGN',
+            'tenant_id' => 'tenant-1',
+            'escrow_id' => 'escrow-1',
+        ]));
+
+        $transaction = AlatPayTransaction::query()->firstOrFail();
+
+        $response->assertRedirect(route('alatpay.checkout', ['reference' => $transaction->reference]));
+
+        $this->assertSame('web_plugin', data_get($transaction->instructions, 'checkout_mode'));
+        $this->assertSame('web_plugin', $transaction->payment_channel);
+        $this->assertNull($transaction->transaction_id);
+        $this->assertNull($transaction->provider_reference);
+
+        Http::assertNothingSent();
+        Queue::assertNothingPushed();
+    }
+
+    public function test_plugin_verification_captures_provider_identifiers_before_reconciliation(): void
+    {
+        Http::fake([
+            'https://sandbox.alatpay.example/api/v1/transaction/check-transaction-status' => Http::response([
+                'status' => true,
+                'message' => 'Payment confirmed',
+                'data' => [
+                    'transactionId' => 'plugin-txn-123',
+                    'sessionId' => 'plugin-sess-123',
+                    'status' => 'successful',
+                    'amount' => 120.00,
+                    'currency' => 'NGN',
+                ],
+            ], 200),
+        ]);
+
+        $user = $this->createUser();
+        $combinedOrder = $this->createCombinedOrder($user, 'unpaid');
+        $payment = $this->createPayment($user, $combinedOrder, 120);
+        $transaction = $this->createAlatPayTransaction($payment, [
+            'transaction_id' => null,
+            'provider_reference' => null,
+            'provider_record_id' => null,
+            'payment_channel' => 'web_plugin',
+            'instructions' => ['checkout_mode' => 'web_plugin'],
+        ]);
+
+        $response = $this->post(route('alatpay.verify', ['reference' => $transaction->reference]), [
+            'plugin_response' => [
+                'status' => true,
+                'data' => [
+                    'id' => 'provider-row-plugin',
+                    'transactionId' => 'plugin-txn-123',
+                    'sessionId' => 'plugin-sess-123',
+                    'orderId' => $transaction->reference,
+                ],
+            ],
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('status', 'successful');
+
+        $this->assertDatabaseHas('alatpay_transactions', [
+            'id' => $transaction->id,
+            'transaction_id' => 'plugin-txn-123',
+            'provider_reference' => 'plugin-sess-123',
+            'provider_record_id' => 'provider-row-plugin',
+            'status' => 'successful',
+        ]);
     }
 
     public function test_successful_verification_marks_payment_paid_and_is_idempotent(): void
@@ -576,6 +681,8 @@ class AlatPayGatewayTest extends TestCase
             ['type' => 'alatpay_env', 'value' => 'sandbox', 'created_at' => now(), 'updated_at' => now()],
             ['type' => 'alatpay_base_url', 'value' => 'https://sandbox.alatpay.example', 'created_at' => now(), 'updated_at' => now()],
             ['type' => 'alatpay_merchant_id', 'value' => 'merchant_123', 'created_at' => now(), 'updated_at' => now()],
+            ['type' => 'alatpay_public_key', 'value' => null, 'created_at' => now(), 'updated_at' => now()],
+            ['type' => 'alatpay_plugin_script_url', 'value' => null, 'created_at' => now(), 'updated_at' => now()],
             ['type' => 'alatpay_client_id', 'value' => 'client_123', 'created_at' => now(), 'updated_at' => now()],
             ['type' => 'alatpay_callback_url', 'value' => 'https://example.com/api/v1/payment/alatpay/webhook', 'created_at' => now(), 'updated_at' => now()],
             ['type' => 'alatpay_supported_currencies', 'value' => json_encode(['NGN']), 'created_at' => now(), 'updated_at' => now()],

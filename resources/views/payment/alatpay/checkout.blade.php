@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>ALATPay Payment Instructions</title>
+    <title>ALATPay Checkout</title>
     <style>
         body {
             margin: 0;
@@ -87,6 +87,10 @@
             cursor: pointer;
             font-weight: 700;
         }
+        .alatpay-button:disabled {
+            opacity: 0.7;
+            cursor: wait;
+        }
         .alatpay-button--primary {
             background: #0f172a;
             color: #fff;
@@ -101,6 +105,14 @@
             font-size: 14px;
             line-height: 1.7;
             color: #4b5563;
+        }
+        .alatpay-warning {
+            margin-top: 18px;
+            border-radius: 16px;
+            background: #fff7ed;
+            color: #9a3412;
+            padding: 16px 18px;
+            line-height: 1.6;
         }
         @media (max-width: 720px) {
             .alatpay-card {
@@ -122,60 +134,112 @@
             <div class="alatpay-brand">
                 <div>
                     <div style="font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: #6b7280;">Kidan x ALATPay</div>
-                    <h1 style="margin: 8px 0 0; font-size: 32px;">Complete your transfer</h1>
+                    <h1 style="margin: 8px 0 0; font-size: 32px;">
+                        {{ $checkout_mode === 'web_plugin' ? 'Complete your payment securely' : 'Complete your transfer' }}
+                    </h1>
                 </div>
-                <span class="alatpay-brand__badge" id="gateway-status">Awaiting payment</span>
+                <span class="alatpay-brand__badge" id="gateway-status">
+                    {{ $checkout_mode === 'web_plugin' ? 'Launching checkout' : 'Awaiting payment' }}
+                </span>
             </div>
 
-            <div class="alatpay-grid">
-                <div class="alatpay-panel">
-                    <div class="alatpay-label">Virtual Account Number</div>
-                    <div class="alatpay-value">{{ data_get($instructions, 'account_number', 'Pending') }}</div>
+            @if ($checkout_mode === 'web_plugin')
+                <div class="alatpay-grid">
+                    <div class="alatpay-panel">
+                        <div class="alatpay-label">Amount</div>
+                        <div class="alatpay-value">{{ data_get($plugin_payload, 'currency', 'NGN') }} {{ number_format((float) data_get($plugin_payload, 'amount', 0), 2) }}</div>
+                    </div>
+                    <div class="alatpay-panel">
+                        <div class="alatpay-label">Customer</div>
+                        <div class="alatpay-value" style="font-size: 20px;">
+                            {{ trim(implode(' ', array_filter([data_get($plugin_payload, 'firstName'), data_get($plugin_payload, 'lastName')]))) ?: 'Kidan Customer' }}
+                        </div>
+                    </div>
+                    <div class="alatpay-panel">
+                        <div class="alatpay-label">Email</div>
+                        <div class="alatpay-value" style="font-size: 20px;">{{ data_get($plugin_payload, 'email', 'Not provided') }}</div>
+                    </div>
+                    <div class="alatpay-panel">
+                        <div class="alatpay-label">Order Reference</div>
+                        <div class="alatpay-value" style="font-size: 20px;">{{ $transaction->reference }}</div>
+                    </div>
                 </div>
-                <div class="alatpay-panel">
-                    <div class="alatpay-label">Bank Code</div>
-                    <div class="alatpay-value">{{ data_get($instructions, 'bank_code', '035') }}</div>
+
+                <div class="alatpay-meta">
+                    <div><strong>Order Code:</strong> {{ $transaction->order_code ?? 'Wallet Funding' }}</div>
+                    <div style="margin-top: 6px;"><strong>Gateway Mode:</strong> Web Plugin</div>
                 </div>
-                <div class="alatpay-panel">
-                    <div class="alatpay-label">Business Name</div>
-                    <div class="alatpay-value" style="font-size: 20px;">{{ data_get($instructions, 'business_name', config('app.name')) }}</div>
+
+                <div class="alatpay-status" id="status-box">
+                    We are preparing the ALATPay checkout popup. If it does not open automatically, use the button below.
                 </div>
-                <div class="alatpay-panel">
-                    <div class="alatpay-label">Amount</div>
-                    <div class="alatpay-value">{{ data_get($instructions, 'currency', 'NGN') }} {{ number_format((float) data_get($instructions, 'amount', 0), 2) }}</div>
+
+                <div class="alatpay-actions">
+                    <button type="button" class="alatpay-button alatpay-button--primary" id="launch-button">Launch ALATPay checkout</button>
+                    <button type="button" class="alatpay-button alatpay-button--ghost" id="verify-button">Verify payment now</button>
                 </div>
-            </div>
 
-            <div class="alatpay-meta">
-                <div><strong>Reference:</strong> {{ $transaction->reference }}</div>
-                <div style="margin-top: 6px;"><strong>Expires:</strong> {{ optional($transaction->expires_at)->toDayDateTimeString() ?? 'Not provided by gateway' }}</div>
-                <div style="margin-top: 6px;"><strong>Order Code:</strong> {{ $transaction->order_code ?? 'Wallet Funding' }}</div>
-            </div>
+                <div class="alatpay-warning" id="plugin-warning" style="display: none;"></div>
 
-            <div class="alatpay-status" id="status-box">
-                We are waiting for ALATPay to confirm the transfer. Keep this page open after you send the payment.
-            </div>
+                <p class="alatpay-note">
+                    The ALATPay web plugin is opened from this secure bridge page. We capture the returned transaction identifiers here, then verify the payment server-side before taking the customer back to the normal Kidan flow.
+                </p>
+            @else
+                <div class="alatpay-grid">
+                    <div class="alatpay-panel">
+                        <div class="alatpay-label">Virtual Account Number</div>
+                        <div class="alatpay-value">{{ data_get($instructions, 'account_number', 'Pending') }}</div>
+                    </div>
+                    <div class="alatpay-panel">
+                        <div class="alatpay-label">Bank Code</div>
+                        <div class="alatpay-value">{{ data_get($instructions, 'bank_code', '035') }}</div>
+                    </div>
+                    <div class="alatpay-panel">
+                        <div class="alatpay-label">Business Name</div>
+                        <div class="alatpay-value" style="font-size: 20px;">{{ data_get($instructions, 'business_name', config('app.name')) }}</div>
+                    </div>
+                    <div class="alatpay-panel">
+                        <div class="alatpay-label">Amount</div>
+                        <div class="alatpay-value">{{ data_get($instructions, 'currency', 'NGN') }} {{ number_format((float) data_get($instructions, 'amount', 0), 2) }}</div>
+                    </div>
+                </div>
 
-            <div class="alatpay-actions">
-                <button type="button" class="alatpay-button alatpay-button--primary" id="verify-button">Verify payment now</button>
-                <button type="button" class="alatpay-button alatpay-button--ghost" id="copy-button">Copy account number</button>
-            </div>
+                <div class="alatpay-meta">
+                    <div><strong>Reference:</strong> {{ $transaction->reference }}</div>
+                    <div style="margin-top: 6px;"><strong>Expires:</strong> {{ optional($transaction->expires_at)->toDayDateTimeString() ?? 'Not provided by gateway' }}</div>
+                    <div style="margin-top: 6px;"><strong>Order Code:</strong> {{ $transaction->order_code ?? 'Wallet Funding' }}</div>
+                </div>
 
-            <p class="alatpay-note">
-                Once the transfer reaches ALATPay, we will verify it server-side and return you to the normal Kidan checkout flow automatically.
-            </p>
+                <div class="alatpay-status" id="status-box">
+                    We are waiting for ALATPay to confirm the transfer. Keep this page open after you send the payment.
+                </div>
+
+                <div class="alatpay-actions">
+                    <button type="button" class="alatpay-button alatpay-button--primary" id="verify-button">Verify payment now</button>
+                    <button type="button" class="alatpay-button alatpay-button--ghost" id="copy-button">Copy account number</button>
+                </div>
+
+                <p class="alatpay-note">
+                    Once the transfer reaches ALATPay, we will verify it server-side and return you to the normal Kidan checkout flow automatically.
+                </p>
+            @endif
         </div>
     </div>
 
     <script>
+        const checkoutMode = @json($checkout_mode);
         const statusUrl = @json($status_url);
         const verifyUrl = @json($verify_url);
-        const accountNumber = @json(data_get($instructions, 'account_number', ''));
         const csrfToken = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
         const gatewayStatus = document.getElementById('gateway-status');
         const statusBox = document.getElementById('status-box');
         const verifyButton = document.getElementById('verify-button');
+        const pluginPayload = @json($plugin_payload);
+        const pluginScriptUrl = @json($plugin_script_url);
+        const launchButton = document.getElementById('launch-button');
+        const pluginWarning = document.getElementById('plugin-warning');
         const copyButton = document.getElementById('copy-button');
+        const accountNumber = @json(data_get($instructions, 'account_number', ''));
 
         const statusStyles = {
             pending: { text: 'Awaiting payment', bg: '#eff6ff', color: '#1d4ed8' },
@@ -208,39 +272,158 @@
             }
         }
 
-        async function verifyNow() {
+        async function verifyNow(pluginResponse = null) {
             verifyButton.disabled = true;
             verifyButton.textContent = 'Verifying...';
+
+            if (launchButton) {
+                launchButton.disabled = true;
+            }
+
             try {
                 const response = await fetch(verifyUrl, {
                     method: 'POST',
                     headers: {
                         'Accept': 'application/json',
+                        'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': csrfToken,
-                    }
+                    },
+                    body: JSON.stringify(pluginResponse ? { plugin_response: pluginResponse } : {}),
                 });
+
                 const payload = await response.json();
                 paintStatus(payload.status, payload.message);
+
                 if (payload.redirect_url) {
                     window.location.href = payload.redirect_url;
                 }
             } finally {
                 verifyButton.disabled = false;
                 verifyButton.textContent = 'Verify payment now';
+
+                if (launchButton) {
+                    launchButton.disabled = false;
+                }
             }
         }
 
-        copyButton.addEventListener('click', async () => {
-            if (!accountNumber) return;
-            await navigator.clipboard.writeText(accountNumber);
-            copyButton.textContent = 'Copied';
-            setTimeout(() => copyButton.textContent = 'Copy account number', 2000);
-        });
+        function showPluginWarning(message) {
+            if (!pluginWarning) {
+                return;
+            }
 
-        verifyButton.addEventListener('click', verifyNow);
+            pluginWarning.style.display = 'block';
+            pluginWarning.textContent = message;
+        }
+
+        function loadPluginScript() {
+            return new Promise((resolve, reject) => {
+                if (window.Alatpay && typeof window.Alatpay.setup === 'function') {
+                    resolve(window.Alatpay);
+                    return;
+                }
+
+                if (!pluginScriptUrl) {
+                    reject(new Error('The ALATPay plugin script URL is not configured.'));
+                    return;
+                }
+
+                const existing = document.querySelector('script[data-alatpay-plugin="1"]');
+                if (existing) {
+                    existing.addEventListener('load', () => resolve(window.Alatpay));
+                    existing.addEventListener('error', () => reject(new Error('ALATPay plugin script failed to load.')));
+                    return;
+                }
+
+                const script = document.createElement('script');
+                script.src = pluginScriptUrl;
+                script.async = true;
+                script.dataset.alatpayPlugin = '1';
+                script.onload = () => {
+                    if (window.Alatpay && typeof window.Alatpay.setup === 'function') {
+                        resolve(window.Alatpay);
+                        return;
+                    }
+
+                    reject(new Error('ALATPay plugin loaded but did not expose the expected setup API.'));
+                };
+                script.onerror = () => reject(new Error('ALATPay plugin script failed to load.'));
+                document.head.appendChild(script);
+            });
+        }
+
+        async function launchPluginCheckout() {
+            if (checkoutMode !== 'web_plugin') {
+                return;
+            }
+
+            launchButton.disabled = true;
+            launchButton.textContent = 'Opening checkout...';
+            paintStatus('processing', 'Opening the ALATPay payment popup...');
+
+            try {
+                const alatpay = await loadPluginScript();
+                const popup = alatpay.setup({
+                    apiKey: pluginPayload.apiKey,
+                    businessId: pluginPayload.businessId,
+                    email: pluginPayload.email,
+                    phone: pluginPayload.phone || '',
+                    firstName: pluginPayload.firstName,
+                    lastName: pluginPayload.lastName,
+                    color: '#01070e',
+                    metadata: pluginPayload.metadata || null,
+                    currency: pluginPayload.currency,
+                    amount: pluginPayload.amount,
+                    orderId: pluginPayload.orderId,
+                    description: pluginPayload.description,
+                    channel: pluginPayload.channel,
+                    onTransaction: async function (response) {
+                        paintStatus('processing', 'ALATPay returned a transaction response. Verifying now...');
+                        await verifyNow(response || {});
+                    },
+                    onClose: function () {
+                        if (!statusBox.textContent.includes('confirmed')) {
+                            paintStatus('pending', 'The ALATPay popup was closed. You can launch it again to continue checkout.');
+                        }
+                    }
+                });
+
+                popup.show();
+                launchButton.textContent = 'Launch ALATPay checkout';
+            } catch (error) {
+                paintStatus('failed', error.message);
+                showPluginWarning(error.message);
+                launchButton.textContent = 'Launch ALATPay checkout';
+            } finally {
+                launchButton.disabled = false;
+            }
+        }
+
+        if (copyButton) {
+            copyButton.addEventListener('click', async () => {
+                if (!accountNumber) return;
+                await navigator.clipboard.writeText(accountNumber);
+                copyButton.textContent = 'Copied';
+                setTimeout(() => copyButton.textContent = 'Copy account number', 2000);
+            });
+        }
+
+        verifyButton.addEventListener('click', () => verifyNow());
+
+        if (launchButton) {
+            launchButton.addEventListener('click', launchPluginCheckout);
+        }
 
         pollStatus(false);
         setInterval(() => pollStatus(true), 10000);
+
+        if (checkoutMode === 'web_plugin') {
+            window.addEventListener('load', () => {
+                window.setTimeout(() => {
+                    launchPluginCheckout();
+                }, 300);
+            });
+        }
     </script>
 </body>
 </html>

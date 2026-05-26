@@ -417,12 +417,23 @@
 
                         <div class="alert alert-soft-secondary mb-3">
                             <div><strong>{{ translate('Gateway Status') }}:</strong> {{ translate(($alatpaySummary['configured'] ?? false) ? 'Configured' : 'Credentials incomplete') }}</div>
+                            <div><strong>{{ translate('Checkout Flow') }}:</strong>
+                                {{ ($alatpaySummary['checkout_flow'] ?? 'virtual_account') === 'web_plugin' ? translate('Web Plugin') : translate('Virtual Account Fallback') }}
+                            </div>
                             <div><strong>{{ translate('Last Webhook Received') }}:</strong>
                                 {{ !empty($alatpaySummary['last_webhook_received_at']) ? \Carbon\Carbon::parse($alatpaySummary['last_webhook_received_at'])->toDayDateTimeString() : translate('Never') }}
                             </div>
                             <div><strong>{{ translate('Last Successful Transaction') }}:</strong>
                                 {{ !empty($alatpaySummary['last_successful_transaction_at']) ? \Carbon\Carbon::parse($alatpaySummary['last_successful_transaction_at'])->toDayDateTimeString() : translate('None yet') }}
                             </div>
+                            <div><strong>{{ translate('Web Plugin Ready') }}:</strong>
+                                {{ ($alatpaySummary['web_plugin_ready'] ?? false) ? translate('Yes') : translate('No - falls back to virtual account checkout') }}
+                            </div>
+                        </div>
+
+                        <div class="alert alert-soft-primary mb-3">
+                            <strong>{{ translate('Core Web Plugin Setup') }}:</strong>
+                            {{ translate('Per the ALATPay web plugin docs, the popup flow mainly needs your Business ID and Public Key. KIDAN now uses the official ALATPay web plugin script automatically, and only keeps the ALATPay Secret Key and Webhook Secret for secure backend confirmation.') }}
                         </div>
 
                         <div class="form-group row">
@@ -453,57 +464,147 @@
 
                         <div class="form-group row">
                             <div class="col-md-4">
-                                <label class="col-from-label">{{ translate('Merchant ID') }}</label>
+                                <label class="col-from-label">{{ translate('Business ID') }}</label>
                             </div>
                             <div class="col-md-8">
                                 <input type="text" class="form-control" name="alatpay_merchant_id"
                                     value="{{ old('alatpay_merchant_id', $alatpaySettings['merchant_id'] ?? '') }}"
-                                    placeholder="{{ translate('Merchant ID') }}" required>
+                                    placeholder="{{ translate('Business ID') }}" required>
                             </div>
                         </div>
 
                         <div class="form-group row">
                             <div class="col-md-4">
-                                <label class="col-from-label">{{ translate('Client ID') }}</label>
+                                <label class="col-from-label">{{ translate('Public Key') }}</label>
                             </div>
                             <div class="col-md-8">
-                                <input type="text" class="form-control" name="alatpay_client_id"
-                                    value="{{ old('alatpay_client_id', $alatpaySettings['client_id'] ?? '') }}"
-                                    placeholder="{{ translate('Client ID') }}" required>
+                                <input type="text" class="form-control" name="alatpay_public_key"
+                                    value="{{ old('alatpay_public_key', $alatpaySettings['public_key'] ?? '') }}"
+                                    placeholder="{{ translate('ALATPay public key for the web plugin') }}">
+                                <small class="text-muted">
+                                    {{ translate('Required for the popup checkout flow shown in the ALATPay web plugin docs.') }}
+                                </small>
                             </div>
                         </div>
 
                         <div class="form-group row">
                             <div class="col-md-4">
-                                <label class="col-from-label">{{ translate('Client Secret') }}</label>
+                                <label class="col-from-label">{{ translate('Secret Key') }}</label>
                             </div>
                             <div class="col-md-8">
                                 <input type="text" class="form-control" name="alatpay_client_secret"
                                     value="{{ old('alatpay_client_secret', '') }}"
-                                    placeholder="{{ ($alatpaySettings['has_client_secret'] ?? false) ? translate('Leave blank to keep existing secret') : translate('Paste client secret') }}">
-                                <small class="text-muted">{{ translate('Stored encrypted at rest.') }}</small>
+                                    placeholder="{{ ($alatpaySettings['has_client_secret'] ?? false) ? translate('Leave blank to keep existing secret key') : translate('Paste ALATPay Secret Key') }}">
+                                <small class="text-muted">
+                                    {{ translate('Used by KIDAN to verify ALATPay transactions securely after the popup closes.') }}
+                                </small>
                             </div>
                         </div>
 
-                        <div class="form-group row">
-                            <div class="col-md-4">
-                                <label class="col-from-label">{{ translate('Subscription Key') }}</label>
+                        <details class="mb-3 border rounded p-3"
+                            @if (
+                                $errors->has('alatpay_client_secret') ||
+                                $errors->has('alatpay_base_url') ||
+                                $errors->has('alatpay_webhook_secret')
+                            ) open @endif>
+                            <summary class="font-weight-bold text-dark" style="cursor: pointer;">
+                                {{ translate('Optional Advanced Settings') }}
+                            </summary>
+                            <small class="d-block text-muted mb-3 mt-2">
+                                {{ translate('ALATPay\'s dashboard mainly gives you Business ID, Public Key, Secret Key, and Webhook Secret Key. The fields below are optional KIDAN-side overrides, not required popup parameters.') }}
+                            </small>
+
+                            <div class="form-group row">
+                                <div class="col-md-4">
+                                    <label class="col-from-label">{{ translate('Base URL') }}</label>
+                                </div>
+                                <div class="col-md-8">
+                                    <input type="url" class="form-control" name="alatpay_base_url"
+                                        value="{{ old('alatpay_base_url', $alatpaySettings['base_url'] ?? '') }}"
+                                        placeholder="https://wema-alatdev-apimgt.developer.azure-api.net">
+                                    <small class="text-muted">{{ translate('Defaults from the selected environment if you leave this untouched.') }}</small>
+                                </div>
                             </div>
-                            <div class="col-md-8">
-                                <input type="text" class="form-control" name="alatpay_subscription_key"
-                                    value="{{ old('alatpay_subscription_key', '') }}"
-                                    placeholder="{{ ($alatpaySettings['has_subscription_key'] ?? false) ? translate('Leave blank to keep existing key') : translate('Paste subscription key') }}">
+
+                            <div class="form-group row mb-0">
+                                <div class="col-md-4">
+                                    <label class="col-from-label">{{ translate('Webhook Secret') }}</label>
+                                </div>
+                                <div class="col-md-8">
+                                    <input type="text" class="form-control" name="alatpay_webhook_secret"
+                                        value="{{ old('alatpay_webhook_secret', '') }}"
+                                        placeholder="{{ ($alatpaySettings['has_webhook_secret'] ?? false) ? translate('Leave blank to keep existing webhook secret key') : translate('Paste ALATPay Webhook Secret Key') }}">
+                                </div>
                             </div>
-                        </div>
+                        </details>
+
+                        <details class="mb-3 border rounded p-3"
+                            @if (
+                                $errors->has('alatpay_supported_currencies') ||
+                                $errors->has('alatpay_charge_type') ||
+                                $errors->has('alatpay_charge_flat') ||
+                                $errors->has('alatpay_charge_percent')
+                            ) open @endif>
+                            <summary class="font-weight-bold text-dark" style="cursor: pointer;">
+                                {{ translate('Optional Settlement Settings') }}
+                            </summary>
+                            <small class="d-block text-muted mb-3 mt-2">
+                                {{ translate('These are optional KIDAN-side payment settings. They are not part of the minimum ALATPay web plugin parameters.') }}
+                            </small>
+
+                            <div class="form-group row">
+                                <div class="col-md-4">
+                                    <label class="col-from-label">{{ translate('Currency Support') }}</label>
+                                </div>
+                                <div class="col-md-8">
+                                    <input type="text" class="form-control" name="alatpay_supported_currencies"
+                                        value="{{ old('alatpay_supported_currencies', $alatpaySettings['supported_currencies'] ?? 'NGN') }}"
+                                        placeholder="NGN, USD">
+                                    <small class="text-muted">{{ translate('Comma-separated ISO currency codes.') }}</small>
+                                </div>
+                            </div>
+
+                            <div class="form-group row">
+                                <div class="col-md-4">
+                                    <label class="col-from-label">{{ translate('Charge Type') }}</label>
+                                </div>
+                                <div class="col-md-8">
+                                    <select class="form-control aiz-selectpicker" name="alatpay_charge_type" data-live-search="false">
+                                        <option value="percentage" @selected(($alatpaySettings['charge_type'] ?? 'percentage') === 'percentage')>{{ translate('Percentage') }}</option>
+                                        <option value="flat" @selected(($alatpaySettings['charge_type'] ?? '') === 'flat')>{{ translate('Flat') }}</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div class="form-group row">
+                                <div class="col-md-4">
+                                    <label class="col-from-label">{{ translate('Flat Charge') }}</label>
+                                </div>
+                                <div class="col-md-8">
+                                    <input type="number" step="0.01" min="0" class="form-control" name="alatpay_charge_flat"
+                                        value="{{ old('alatpay_charge_flat', $alatpaySettings['charge_flat'] ?? 0) }}">
+                                </div>
+                            </div>
+
+                            <div class="form-group row mb-0">
+                                <div class="col-md-4">
+                                    <label class="col-from-label">{{ translate('Charge Percent') }}</label>
+                                </div>
+                                <div class="col-md-8">
+                                    <input type="number" step="0.01" min="0" max="100" class="form-control" name="alatpay_charge_percent"
+                                        value="{{ old('alatpay_charge_percent', $alatpaySettings['charge_percent'] ?? 0) }}">
+                                </div>
+                            </div>
+                        </details>
 
                         <div class="form-group row">
                             <div class="col-md-4">
-                                <label class="col-from-label">{{ translate('Base URL') }}</label>
+                                <label class="col-from-label">{{ translate('Plugin Script') }}</label>
                             </div>
                             <div class="col-md-8">
-                                <input type="url" class="form-control" name="alatpay_base_url"
-                                    value="{{ old('alatpay_base_url', $alatpaySettings['base_url'] ?? '') }}"
-                                    placeholder="https://wema-alatdev-apimgt.developer.azure-api.net" required>
+                                <input type="text" class="form-control" value="https://web.alatpay.ng/js/alatpay.js"
+                                    readonly>
+                                <small class="text-muted">{{ translate('Built in from the official ALATPay web plugin script you provided.') }}</small>
                             </div>
                         </div>
 
@@ -514,62 +615,8 @@
                             <div class="col-md-8">
                                 <input type="url" class="form-control" name="alatpay_callback_url"
                                     value="{{ old('alatpay_callback_url', $alatpaySettings['callback_url'] ?? '') }}"
-                                    placeholder="{{ translate('Callback URL') }}" required>
-                            </div>
-                        </div>
-
-                        <div class="form-group row">
-                            <div class="col-md-4">
-                                <label class="col-from-label">{{ translate('Webhook Secret') }}</label>
-                            </div>
-                            <div class="col-md-8">
-                                <input type="text" class="form-control" name="alatpay_webhook_secret"
-                                    value="{{ old('alatpay_webhook_secret', '') }}"
-                                    placeholder="{{ ($alatpaySettings['has_webhook_secret'] ?? false) ? translate('Leave blank to keep existing webhook secret') : translate('Webhook Secret') }}">
-                            </div>
-                        </div>
-
-                        <div class="form-group row">
-                            <div class="col-md-4">
-                                <label class="col-from-label">{{ translate('Currency Support') }}</label>
-                            </div>
-                            <div class="col-md-8">
-                                <input type="text" class="form-control" name="alatpay_supported_currencies"
-                                    value="{{ old('alatpay_supported_currencies', $alatpaySettings['supported_currencies'] ?? 'NGN') }}"
-                                    placeholder="NGN, USD">
-                                <small class="text-muted">{{ translate('Comma-separated ISO currency codes.') }}</small>
-                            </div>
-                        </div>
-
-                        <div class="form-group row">
-                            <div class="col-md-4">
-                                <label class="col-from-label">{{ translate('Charge Type') }}</label>
-                            </div>
-                            <div class="col-md-8">
-                                <select class="form-control aiz-selectpicker" name="alatpay_charge_type" data-live-search="false">
-                                    <option value="percentage" @selected(($alatpaySettings['charge_type'] ?? 'percentage') === 'percentage')>{{ translate('Percentage') }}</option>
-                                    <option value="flat" @selected(($alatpaySettings['charge_type'] ?? '') === 'flat')>{{ translate('Flat') }}</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="form-group row">
-                            <div class="col-md-4">
-                                <label class="col-from-label">{{ translate('Flat Charge') }}</label>
-                            </div>
-                            <div class="col-md-8">
-                                <input type="number" step="0.01" min="0" class="form-control" name="alatpay_charge_flat"
-                                    value="{{ old('alatpay_charge_flat', $alatpaySettings['charge_flat'] ?? 0) }}">
-                            </div>
-                        </div>
-
-                        <div class="form-group row">
-                            <div class="col-md-4">
-                                <label class="col-from-label">{{ translate('Charge Percent') }}</label>
-                            </div>
-                            <div class="col-md-8">
-                                <input type="number" step="0.01" min="0" max="100" class="form-control" name="alatpay_charge_percent"
-                                    value="{{ old('alatpay_charge_percent', $alatpaySettings['charge_percent'] ?? 0) }}">
+                                    readonly>
+                                <small class="text-muted">{{ translate('Copy this into the Webhook URL / callback area inside ALATPay if they ask for it on the dashboard.') }}</small>
                             </div>
                         </div>
 

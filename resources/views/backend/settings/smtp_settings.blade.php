@@ -11,14 +11,17 @@
                 <form class="form-horizontal" action="{{ route('env_key_update.update') }}" method="POST">
                     @csrf
                     <div class="form-group row">
+                        <input type="hidden" name="types[]" value="MAIL_MAILER">
                         <input type="hidden" name="types[]" value="MAIL_DRIVER">
-                        <label class="col-md-3 col-form-label">{{translate('Type')}}</label>
+                        <input type="hidden" name="MAIL_DRIVER" id="legacy_mail_driver" value="{{ config('mail.default', env('MAIL_DRIVER', 'smtp')) }}">
+                        <label class="col-md-3 col-form-label">{{translate('Mailer')}}</label>
                         <div class="col-md-7">
-                            <select class="form-control aiz-selectpicker mb-2 mb-md-0" name="MAIL_DRIVER" onchange="checkMailDriver()">
-                                <option value="sendmail" @if (env('MAIL_DRIVER') == "sendmail") selected @endif>{{ translate('Sendmail') }}</option>
-                                <option value="smtp" @if (env('MAIL_DRIVER') == "smtp") selected @endif>{{ translate('SMTP') }}</option>
-                                <option value="mailgun" @if (env('MAIL_DRIVER') == "mailgun") selected @endif>{{ translate('Mailgun') }}</option>
+                            <select class="form-control aiz-selectpicker mb-2 mb-md-0" name="MAIL_MAILER" onchange="checkMailDriver()">
+                                <option value="sendmail" @if (config('mail.default', env('MAIL_DRIVER', 'smtp')) == "sendmail") selected @endif>{{ translate('Sendmail') }}</option>
+                                <option value="smtp" @if (config('mail.default', env('MAIL_DRIVER', 'smtp')) == "smtp") selected @endif>{{ translate('SMTP') }}</option>
+                                <option value="mailgun" @if (config('mail.default', env('MAIL_DRIVER', 'smtp')) == "mailgun") selected @endif>{{ translate('Mailgun') }}</option>
                             </select>
+                            <small class="form-text text-muted">{{ translate('This updates both MAIL_MAILER and the legacy MAIL_DRIVER key so existing mail flows stay aligned.') }}</small>
                         </div>
                     </div>
                     <div id="smtp">
@@ -28,7 +31,7 @@
                                 <label class="col-from-label">{{translate('MAIL HOST')}}</label>
                             </div>
                             <div class="col-md-7">
-                                <input type="text" class="form-control" name="MAIL_HOST" value="{{  env('MAIL_HOST') }}" placeholder="{{ translate('MAIL HOST') }}">
+                                <input type="text" class="form-control" name="MAIL_HOST" value="{{ config('mail.mailers.smtp.host') }}" placeholder="{{ translate('MAIL HOST') }}">
                             </div>
                         </div>
                         <div class="form-group row">
@@ -37,7 +40,7 @@
                                 <label class="col-from-label">{{translate('MAIL PORT')}}</label>
                             </div>
                             <div class="col-md-7">
-                                <input type="text" class="form-control" name="MAIL_PORT" value="{{  env('MAIL_PORT') }}" placeholder="{{ translate('MAIL PORT') }}">
+                                <input type="text" class="form-control" name="MAIL_PORT" value="{{ config('mail.mailers.smtp.port') }}" placeholder="{{ translate('MAIL PORT') }}">
                             </div>
                         </div>
                         <div class="form-group row">
@@ -46,7 +49,7 @@
                                 <label class="col-from-label">{{translate('MAIL USERNAME')}}</label>
                             </div>
                             <div class="col-md-7">
-                                <input type="text" class="form-control" name="MAIL_USERNAME" value="{{  env('MAIL_USERNAME') }}" placeholder="{{ translate('MAIL USERNAME') }}">
+                                <input type="text" class="form-control" name="MAIL_USERNAME" value="{{ config('mail.mailers.smtp.username') }}" placeholder="{{ translate('MAIL USERNAME') }}">
                             </div>
                         </div>
                         <div class="form-group row">
@@ -55,7 +58,7 @@
                                 <label class="col-from-label">{{translate('MAIL PASSWORD')}}</label>
                             </div>
                             <div class="col-md-7">
-                                <input type="text" class="form-control" name="MAIL_PASSWORD" value="{{  env('MAIL_PASSWORD') }}" placeholder="{{ translate('MAIL PASSWORD') }}">
+                                <input type="text" class="form-control" name="MAIL_PASSWORD" value="{{ config('mail.mailers.smtp.password') }}" placeholder="{{ translate('MAIL PASSWORD') }}">
                             </div>
                         </div>
                         <div class="form-group row">
@@ -64,7 +67,7 @@
                                 <label class="col-from-label">{{translate('MAIL ENCRYPTION')}}</label>
                             </div>
                             <div class="col-md-7">
-                                <input type="text" class="form-control" name="MAIL_ENCRYPTION" value="{{  env('MAIL_ENCRYPTION') }}" placeholder="{{ translate('MAIL ENCRYPTION') }}">
+                                <input type="text" class="form-control" name="MAIL_ENCRYPTION" value="{{ config('mail.mailers.smtp.encryption') }}" placeholder="{{ translate('MAIL ENCRYPTION') }}">
                             </div>
                         </div>
                         <div class="form-group row">
@@ -73,7 +76,7 @@
                                 <label class="col-from-label">{{translate('MAIL FROM ADDRESS')}}</label>
                             </div>
                             <div class="col-md-7">
-                                <input type="text" class="form-control" name="MAIL_FROM_ADDRESS" value="{{  env('MAIL_FROM_ADDRESS') }}" placeholder="{{ translate('MAIL FROM ADDRESS') }}">
+                                <input type="text" class="form-control" name="MAIL_FROM_ADDRESS" value="{{ config('mail.from.address') }}" placeholder="{{ translate('MAIL FROM ADDRESS') }}">
                             </div>
                         </div>
                         <div class="form-group row">
@@ -82,7 +85,7 @@
                                 <label class="col-from-label">{{translate('MAIL FROM NAME')}}</label>
                             </div>
                             <div class="col-md-7">
-                                <input type="text" class="form-control" name="MAIL_FROM_NAME" value="{{  env('MAIL_FROM_NAME') }}" placeholder="{{ translate('MAIL FROM NAME') }}">
+                                <input type="text" class="form-control" name="MAIL_FROM_NAME" value="{{ config('mail.from.name') }}" placeholder="{{ translate('MAIL FROM NAME') }}">
                             </div>
                         </div>
                     </div>
@@ -93,7 +96,7 @@
                                 <label class="col-from-label">{{translate('MAILGUN DOMAIN')}}</label>
                             </div>
                             <div class="col-md-7">
-                                <input type="text" class="form-control" name="MAILGUN_DOMAIN" value="{{  env('MAILGUN_DOMAIN') }}" placeholder="{{ translate('MAILGUN DOMAIN') }}">
+                                <input type="text" class="form-control" name="MAILGUN_DOMAIN" value="{{ config('services.mailgun.domain') }}" placeholder="{{ translate('MAILGUN DOMAIN') }}">
                             </div>
                         </div>
                         <div class="form-group row">
@@ -102,7 +105,7 @@
                                 <label class="col-from-label">{{translate('MAILGUN SECRET')}}</label>
                             </div>
                             <div class="col-md-7">
-                                <input type="text" class="form-control" name="MAILGUN_SECRET" value="{{  env('MAILGUN_SECRET') }}" placeholder="{{ translate('MAILGUN SECRET') }}">
+                                <input type="text" class="form-control" name="MAILGUN_SECRET" value="{{ config('services.mailgun.secret') }}" placeholder="{{ translate('MAILGUN SECRET') }}">
                             </div>
                         </div>
                     </div>
@@ -167,7 +170,10 @@
             checkMailDriver();
         });
         function checkMailDriver(){
-            if($('select[name=MAIL_DRIVER]').val() == 'mailgun'){
+            const selectedMailer = $('select[name=MAIL_MAILER]').val();
+            $('#legacy_mail_driver').val(selectedMailer);
+
+            if(selectedMailer == 'mailgun'){
                 $('#mailgun').show();
                 $('#smtp').hide();
             }

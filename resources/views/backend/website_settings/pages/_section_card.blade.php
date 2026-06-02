@@ -674,8 +674,9 @@
                     <button type="button" class="btn btn-soft-primary btn-sm add-feature-item">{{ translate('Add Item') }}</button>
                 </div>
                 <div class="feature-items">
-                    @foreach ($featureItems as $featureIndex => $item)
-                        <div class="border rounded p-3 mb-2 feature-item" data-feature-index="{{ $featureIndex }}">
+                    @if ($currentType === 'multi_column_features')
+                        @foreach ($featureItems as $featureIndex => $item)
+                            <div class="border rounded p-3 mb-2 feature-item" data-feature-index="{{ $featureIndex }}">
                             <div class="d-flex justify-content-between align-items-center mb-2">
                                 <strong>{{ translate('Feature Item') }}</strong>
                                 <button type="button" class="btn btn-soft-danger btn-sm remove-feature-item">{{ translate('Remove') }}</button>
@@ -687,6 +688,34 @@
                             <div class="form-group">
                                 <label>{{ translate('Item Description') }}</label>
                                 <textarea class="form-control" rows="3" name="sections[{{ $index }}][settings][items][{{ $featureIndex }}][description]">{{ $item['description'] ?? '' }}</textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>{{ translate('Meta / Label') }}</label>
+                                        <input type="text" class="form-control" name="sections[{{ $index }}][settings][items][{{ $featureIndex }}][meta]" value="{{ $item['meta'] ?? '' }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>{{ translate('Sub Meta') }}</label>
+                                        <input type="text" class="form-control" name="sections[{{ $index }}][settings][items][{{ $featureIndex }}][submeta]" value="{{ $item['submeta'] ?? '' }}">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>{{ translate('Button Text') }}</label>
+                                        <input type="text" class="form-control" name="sections[{{ $index }}][settings][items][{{ $featureIndex }}][button_text]" value="{{ $item['button_text'] ?? '' }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="form-group">
+                                        <label>{{ translate('Button Link') }}</label>
+                                        <input type="text" class="form-control" name="sections[{{ $index }}][settings][items][{{ $featureIndex }}][button_link]" value="{{ $item['button_link'] ?? '' }}">
+                                    </div>
+                                </div>
                             </div>
                             <div class="form-group mb-0">
                                 <label>{{ translate('Icon / Image') }}</label>
@@ -700,7 +729,106 @@
                                 <div class="file-preview box sm"></div>
                             </div>
                         </div>
-                    @endforeach
+                        @endforeach
+                    @endif
+                </div>
+            </div>
+
+            <div class="type-panel" data-type-panel="contact_hero_form">
+                <div class="alert alert-soft-info mb-3">
+                    {{ translate('Renders the Contact Us hero, contact information panel, and public message form. Uses the primary image above for the hero background.') }}
+                </div>
+                <div class="form-group">
+                    <label>{{ translate('Fallback Hero Image URL') }}</label>
+                    <input type="text" class="form-control" name="sections[{{ $index }}][settings][fallback_image_url]" value="{{ $settings['fallback_image_url'] ?? '' }}" placeholder="/assets/img/about_hero.jpg">
+                </div>
+                <div class="form-group">
+                    <label>{{ translate('Contact Panel Intro') }}</label>
+                    <input type="text" class="form-control" name="sections[{{ $index }}][settings][contact_intro]" value="{{ $settings['contact_intro'] ?? '' }}">
+                </div>
+                <div class="form-row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>{{ translate('Location Label') }}</label>
+                            <input type="text" class="form-control" name="sections[{{ $index }}][settings][location_label]" value="{{ $settings['location_label'] ?? 'Location' }}">
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="form-group">
+                            <label>{{ translate('Location Text') }}</label>
+                            <textarea class="form-control" rows="2" name="sections[{{ $index }}][settings][location_text]">{{ $settings['location_text'] ?? '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>{{ translate('Mail Label') }}</label>
+                            <input type="text" class="form-control" name="sections[{{ $index }}][settings][mail_label]" value="{{ $settings['mail_label'] ?? 'Mail' }}">
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="form-group">
+                            <label>{{ translate('Mail Text') }}</label>
+                            <input type="text" class="form-control" name="sections[{{ $index }}][settings][mail_text]" value="{{ $settings['mail_text'] ?? '' }}">
+                        </div>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>{{ translate('Phone Label') }}</label>
+                            <input type="text" class="form-control" name="sections[{{ $index }}][settings][phone_label]" value="{{ $settings['phone_label'] ?? 'Phone' }}">
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="form-group">
+                            <label>{{ translate('Phone Text') }}</label>
+                            <input type="text" class="form-control" name="sections[{{ $index }}][settings][phone_text]" value="{{ $settings['phone_text'] ?? '' }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="type-panel" data-type-panel="contact_topic_buttons">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="mb-0">{{ translate('Inquiry Category Buttons') }}</label>
+                    <button type="button" class="btn btn-soft-primary btn-sm add-feature-item">{{ translate('Add Button') }}</button>
+                </div>
+                <div class="feature-items">
+                    @if ($currentType === 'contact_topic_buttons')
+                        @foreach ($featureItems as $featureIndex => $item)
+                            @include('backend.website_settings.pages.partials._section_item_fields', ['index' => $index, 'featureIndex' => $featureIndex, 'item' => $item, 'label' => translate('Inquiry Button')])
+                        @endforeach
+                    @endif
+                </div>
+            </div>
+
+            <div class="type-panel" data-type-panel="contact_store_grid">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="mb-0">{{ translate('Store Cards') }}</label>
+                    <button type="button" class="btn btn-soft-primary btn-sm add-feature-item">{{ translate('Add Store') }}</button>
+                </div>
+                <div class="feature-items">
+                    @if ($currentType === 'contact_store_grid')
+                        @foreach ($featureItems as $featureIndex => $item)
+                            @include('backend.website_settings.pages.partials._section_item_fields', ['index' => $index, 'featureIndex' => $featureIndex, 'item' => $item, 'label' => translate('Store Card')])
+                        @endforeach
+                    @endif
+                </div>
+            </div>
+
+            <div class="type-panel" data-type-panel="faq_list">
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <label class="mb-0">{{ translate('FAQ Items') }}</label>
+                    <button type="button" class="btn btn-soft-primary btn-sm add-feature-item">{{ translate('Add FAQ') }}</button>
+                </div>
+                <div class="feature-items">
+                    @if ($currentType === 'faq_list')
+                        @foreach ($featureItems as $featureIndex => $item)
+                            @include('backend.website_settings.pages.partials._section_item_fields', ['index' => $index, 'featureIndex' => $featureIndex, 'item' => $item, 'label' => translate('FAQ Item')])
+                        @endforeach
+                    @endif
                 </div>
             </div>
 

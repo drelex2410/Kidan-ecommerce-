@@ -7,7 +7,9 @@ use App\Mail\EmailManager;
 use App\Models\AuthCode;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class AuthCodeService
@@ -55,6 +57,7 @@ class AuthCodeService
     public function sendVerificationCode(User $user, string $channel, string $target, string $code): void
     {
         $this->dispatchCode(
+            self::PURPOSE_VERIFICATION,
             $channel,
             $target,
             $code,
@@ -67,6 +70,7 @@ class AuthCodeService
     public function sendPasswordResetCode(string $channel, string $target, string $code): void
     {
         $this->dispatchCode(
+            self::PURPOSE_PASSWORD_RESET,
             $channel,
             $target,
             $code,
@@ -105,6 +109,7 @@ class AuthCodeService
     }
 
     private function dispatchCode(
+        string $purpose,
         string $channel,
         string $target,
         string $code,
@@ -114,8 +119,20 @@ class AuthCodeService
     ): void {
         if ($channel === 'phone') {
             if (!$smsCallback($target, $code)) {
+                Log::warning('Auth code SMS delivery failed', [
+                    'purpose' => $purpose,
+                    'channel' => $channel,
+                    'target' => $this->maskTarget($channel, $target),
+                ]);
+
                 throw new HttpException(503, 'Unable to send verification code at the moment.');
             }
+
+            Log::info('Auth code SMS dispatched', [
+                'purpose' => $purpose,
+                'channel' => $channel,
+                'target' => $this->maskTarget($channel, $target),
+            ]);
 
             return;
         }
@@ -123,15 +140,47 @@ class AuthCodeService
         try {
             Mail::to($target)->send(new EmailManager([
                 'view' => 'emails.verification',
-                'from' => env('MAIL_FROM_ADDRESS'),
+                'from' => config('mail.from.address'),
                 'subject' => translate($subject),
                 'content' => translate($content),
                 'verification_code' => $code,
             ]));
+
+            Log::info('Auth code email dispatched', [
+                'purpose' => $purpose,
+                'channel' => $channel,
+                'target' => $this->maskTarget($channel, $target),
+                'mailer' => config('mail.default'),
+                'queue_connection' => config('queue.default'),
+            ]);
         } catch (\Throwable $exception) {
+            Log::error('Auth code email delivery failed', [
+                'purpose' => $purpose,
+                'channel' => $channel,
+                'target' => $this->maskTarget($channel, $target),
+                'mailer' => config('mail.default'),
+                'queue_connection' => config('queue.default'),
+                'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+            ]);
             report($exception);
 
             throw new HttpException(503, 'Unable to send verification code at the moment.');
         }
+    }
+
+    private function maskTarget(string $channel, string $target): string
+    {
+        if ($channel === 'phone') {
+            return Str::mask($target, '*', 3, max(strlen($target) - 5, 1));
+        }
+
+        [$localPart, $domain] = array_pad(explode('@', $target, 2), 2, '');
+
+        if ($domain === '') {
+            return Str::mask($target, '*', 3);
+        }
+
+        return Str::mask($localPart, '*', 1) . '@' . $domain;
     }
 }

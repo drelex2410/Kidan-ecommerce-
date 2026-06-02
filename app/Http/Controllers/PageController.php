@@ -273,6 +273,19 @@ class PageController extends Controller
             'sections.*.settings.bullets.*.text' => 'nullable|string|max:255',
             'sections.*.settings.items.*.title' => 'nullable|string|max:255',
             'sections.*.settings.items.*.description' => 'nullable|string',
+            'sections.*.settings.items.*.meta' => 'nullable|string|max:255',
+            'sections.*.settings.items.*.submeta' => 'nullable|string|max:255',
+            'sections.*.settings.items.*.button_text' => 'nullable|string|max:255',
+            'sections.*.settings.items.*.button_link' => 'nullable|string|max:255',
+            'sections.*.settings.items.*.image' => 'nullable',
+            'sections.*.settings.contact_intro' => 'nullable|string|max:255',
+            'sections.*.settings.location_label' => 'nullable|string|max:255',
+            'sections.*.settings.location_text' => 'nullable|string|max:500',
+            'sections.*.settings.mail_label' => 'nullable|string|max:255',
+            'sections.*.settings.mail_text' => 'nullable|string|max:255',
+            'sections.*.settings.phone_label' => 'nullable|string|max:255',
+            'sections.*.settings.phone_text' => 'nullable|string|max:255',
+            'sections.*.settings.fallback_image_url' => 'nullable|string|max:500',
             'sections.*.settings.product_source_type' => ['nullable', Rule::in(['category', 'brand'])],
             'sections.*.settings.product_category_id' => 'nullable|exists:categories,id',
             'sections.*.settings.product_brand_id' => 'nullable|exists:brands,id',
@@ -326,13 +339,25 @@ class PageController extends Controller
 
         $featureItems = [];
         foreach (Arr::get($settings, 'items', []) as $item) {
-            if (! Arr::get($item, 'title') && ! Arr::get($item, 'description') && ! Arr::get($item, 'image')) {
+            if (
+                ! Arr::get($item, 'title') &&
+                ! Arr::get($item, 'description') &&
+                ! Arr::get($item, 'meta') &&
+                ! Arr::get($item, 'submeta') &&
+                ! Arr::get($item, 'button_text') &&
+                ! Arr::get($item, 'button_link') &&
+                ! Arr::get($item, 'image')
+            ) {
                 continue;
             }
 
             $featureItems[] = [
                 'title' => Arr::get($item, 'title'),
                 'description' => Arr::get($item, 'description'),
+                'meta' => Arr::get($item, 'meta'),
+                'submeta' => Arr::get($item, 'submeta'),
+                'button_text' => Arr::get($item, 'button_text'),
+                'button_link' => Arr::get($item, 'button_link'),
                 'image' => Arr::get($item, 'image'),
             ];
         }
@@ -412,6 +437,14 @@ class PageController extends Controller
             'text_align' => Arr::get($settings, 'text_align', 'center'),
             'title_max_width' => Arr::get($settings, 'title_max_width'),
             'image_alt' => Arr::get($settings, 'image_alt'),
+            'fallback_image_url' => Arr::get($settings, 'fallback_image_url'),
+            'contact_intro' => Arr::get($settings, 'contact_intro'),
+            'location_label' => Arr::get($settings, 'location_label'),
+            'location_text' => Arr::get($settings, 'location_text'),
+            'mail_label' => Arr::get($settings, 'mail_label'),
+            'mail_text' => Arr::get($settings, 'mail_text'),
+            'phone_label' => Arr::get($settings, 'phone_label'),
+            'phone_text' => Arr::get($settings, 'phone_text'),
             'default_tab' => (int) $defaultTabIndex,
             'tab_visibility' => Arr::get($settings, 'tab_visibility', 'always'),
             'items' => $featureItems,

@@ -55,6 +55,14 @@ class Page extends Model
             return '/journal';
         }
 
+        if ($this->slug === 'faq') {
+            return '/faq';
+        }
+
+        if ($this->slug === 'contact-us') {
+            return '/contact-us';
+        }
+
         if ($this->type === 'home_page') {
             return '/';
         }

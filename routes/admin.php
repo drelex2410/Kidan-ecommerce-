@@ -14,6 +14,7 @@ use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ChatController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\ClubPointController;
+use App\Http\Controllers\ContactSubmissionController;
 use App\Http\Controllers\ConversationController;
 use App\Http\Controllers\CountryController;
 use App\Http\Controllers\CouponController;
@@ -261,6 +262,12 @@ Route::group(['prefix' => 'admin', 'middleware' => ['auth', 'admin']], function 
     //Subscribers
     Route::get('/subscribers', [SubscriberController::class, 'index'])->name('subscribers.index');
     Route::get('/subscriber/delete/{id}', [SubscriberController::class, 'destroy'])->name('subscriber.delete');
+
+    // Contact submissions
+    Route::get('/contact-submissions', [ContactSubmissionController::class, 'index'])->name('contact-submissions.index');
+    Route::get('/contact-submissions/{contactSubmission}', [ContactSubmissionController::class, 'show'])->name('contact-submissions.show');
+    Route::post('/contact-submissions/{contactSubmission}', [ContactSubmissionController::class, 'update'])->name('contact-submissions.update');
+    Route::get('/contact-submissions/destroy/{contactSubmission}', [ContactSubmissionController::class, 'destroy'])->name('contact-submissions.destroy');
 
     // Orders
     Route::resource('orders', OrderController::class)->except(['destroy']);

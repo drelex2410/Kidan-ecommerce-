@@ -31,8 +31,8 @@ class OrderPlacedNotification extends Notification implements ShouldQueue
 
         return (new MailMessage)
             ->view('emails.invoice', ['array' => $array, 'combined_order' => $this->combined_order])
-            ->from(env('MAIL_FROM_ADDRESS'))
-            ->subject(translate('Order Placed').' - '.env('APP_NAME'));
+            ->from(config('mail.from.address'), config('mail.from.name'))
+            ->subject(translate('Order Placed').' - '.config('app.name'));
     }
 
     public function toArray($notifiable)

@@ -33,6 +33,10 @@ const EDITORIAL_TYPES = [
     "image_content_panel",
     "vision_mission_split",
     "editorial_quote",
+    "contact_hero_form",
+    "contact_topic_buttons",
+    "contact_store_grid",
+    "faq_list",
 ];
 
 export default {

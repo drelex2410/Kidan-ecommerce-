@@ -46,8 +46,8 @@ class SellerInvoiceNotification extends Notification
         $array['order'] = $this->order;
         return (new MailMessage)
             ->view('emails.seller_invoice', ['array' => $array, 'order' => $this->order, 'combined_order' => $combined_order])
-            ->from(env('MAIL_FROM_ADDRESS'))
-            ->subject(translate('Order Placed').' - '.env('APP_NAME'));
+            ->from(config('mail.from.address'), config('mail.from.name'))
+            ->subject(translate('Order Placed').' - '.config('app.name'));
     }
 
     /**

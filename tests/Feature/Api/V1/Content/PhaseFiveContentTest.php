@@ -46,6 +46,82 @@ class PhaseFiveContentTest extends TestCase
             ->assertJsonPath('data.sections.0.data.image', $this->uploadPath(1));
     }
 
+    public function test_page_by_slug_returns_contact_and_faq_section_payloads(): void
+    {
+        $contactPageId = DB::table('pages')->insertGetId([
+            'title' => 'Contact Us',
+            'slug' => 'contact-us',
+            'is_published' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('page_sections')->insert([
+            'page_id' => $contactPageId,
+            'section_key' => 'contact-hero',
+            'type' => 'contact_hero_form',
+            'title' => 'Contact Us',
+            'subtitle' => 'We are ready to assist.',
+            'settings_json' => json_encode([
+                'fallback_image_url' => '/assets/img/about_hero.jpg',
+                'contact_intro' => 'Reach out to us.',
+                'location_label' => 'Location',
+                'location_text' => 'No. 10 New Yidi Road Ilorin, Kwara State Nigeria.',
+                'mail_label' => 'Mail',
+                'mail_text' => 'support@kidanstore.com',
+                'phone_label' => 'Phone',
+                'phone_text' => '07071827096',
+            ]),
+            'sort_order' => 1,
+            'is_visible' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $faqPageId = DB::table('pages')->insertGetId([
+            'title' => 'Frequently Asked Questions',
+            'slug' => 'faq',
+            'is_published' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('page_sections')->insert([
+            'page_id' => $faqPageId,
+            'section_key' => 'faq-list',
+            'type' => 'faq_list',
+            'title' => 'Frequently Asked Questions',
+            'subtitle' => 'You have questions ? we have answers.',
+            'settings_json' => json_encode([
+                'items' => [
+                    [
+                        'title' => 'What is KIDANSTORE?',
+                        'description' => '<p>KIDANSTORE is a contemporary African lifestyle ecosystem.</p>',
+                        'meta' => 'Customer Care',
+                        'button_text' => 'Contact Page',
+                        'button_link' => '/contact-us',
+                    ],
+                ],
+            ]),
+            'sort_order' => 1,
+            'is_visible' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->getJson('/api/v1/page/contact-us')
+            ->assertOk()
+            ->assertJsonPath('data.sections.0.type', 'contact_hero_form')
+            ->assertJsonPath('data.sections.0.data.location_text', 'No. 10 New Yidi Road Ilorin, Kwara State Nigeria.')
+            ->assertJsonPath('data.sections.0.data.fallback_image_url', '/assets/img/about_hero.jpg');
+
+        $this->getJson('/api/v1/page/faq')
+            ->assertOk()
+            ->assertJsonPath('data.sections.0.type', 'faq_list')
+            ->assertJsonPath('data.sections.0.data.items.0.title', 'What is KIDANSTORE?')
+            ->assertJsonPath('data.sections.0.data.items.0.button_link', '/contact-us');
+    }
+
     public function test_page_by_slug_returns_explicit_404(): void
     {
         $this->getJson('/api/v1/page/missing-page')

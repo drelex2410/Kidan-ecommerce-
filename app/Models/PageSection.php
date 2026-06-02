@@ -45,6 +45,10 @@ class PageSection extends Model
         'image_gallery' => 'Image Gallery Section',
         'spacer' => 'Spacer / Divider Section',
         'journal_editorial' => 'Journal Editorial Section',
+        'contact_hero_form' => 'Contact Hero + Form Section',
+        'contact_topic_buttons' => 'Contact Inquiry Buttons Section',
+        'contact_store_grid' => 'Contact Store Cards Section',
+        'faq_list' => 'FAQ List Section',
     ];
 
     public function page()

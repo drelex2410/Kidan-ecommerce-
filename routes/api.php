@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V1\Catalog\ProductSearchController as V1ProductSear
 use App\Http\Controllers\Api\V1\Content\BlogCategoryController as V1BlogCategoryController;
 use App\Http\Controllers\Api\V1\Content\BlogDetailsController as V1BlogDetailsController;
 use App\Http\Controllers\Api\V1\Content\BlogSearchController as V1BlogSearchController;
+use App\Http\Controllers\Api\V1\Content\ContactSubmissionController as V1ContactSubmissionController;
 use App\Http\Controllers\Api\V1\Content\FooterSettingsController as V1FooterSettingsController;
 use App\Http\Controllers\Api\V1\Content\HeaderSettingsController as V1HeaderSettingsController;
 use App\Http\Controllers\Api\V1\Content\HomeSectionController as V1HomeSectionController;
@@ -115,6 +116,7 @@ Route::group(['prefix' => 'v1', 'as' => 'api.'], function () {
     Route::get('all-offers', [V1OfferController::class, 'index']);
     Route::get('offer/{slug}', [V1OfferController::class, 'show']);
     Route::get('page/{slug}', [V1PageController::class, 'show']);
+    Route::post('contact-submissions', [V1ContactSubmissionController::class, 'store'])->middleware('throttle:6,1');
 
     // Blogs
     Route::get('all-blog-categories', V1BlogCategoryController::class);

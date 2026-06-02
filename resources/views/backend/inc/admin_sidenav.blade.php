@@ -342,7 +342,7 @@
                     @endcan
                 @endif
                 <!-- marketing -->
-                @canany(['show_offers','send_newsletters','show_subscribers','show_coupons'])
+                @canany(['show_offers','send_newsletters','show_subscribers','show_contact_submissions','show_coupons'])
                     <li class="aiz-side-nav-item">
                         <a href="#" class="aiz-side-nav-link">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="14" viewBox="0 0 16 14">
@@ -385,6 +385,14 @@
                                 <li class="aiz-side-nav-item">
                                     <a href="{{ route('subscribers.index') }}" class="aiz-side-nav-link">
                                         <span class="aiz-side-nav-text">{{ translate('Subscribers') }}</span>
+                                    </a>
+                                </li>
+                            @endcan
+                            @can('show_contact_submissions')
+                                <li class="aiz-side-nav-item">
+                                    <a href="{{ route('contact-submissions.index') }}"
+                                        class="aiz-side-nav-link {{ areActiveRoutes(['contact-submissions.index', 'contact-submissions.show']) }}">
+                                        <span class="aiz-side-nav-text">{{ translate('Contact Submissions') }}</span>
                                     </a>
                                 </li>
                             @endcan

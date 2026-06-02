@@ -31,7 +31,7 @@
         </v-col>
         <v-col lg="3">
           <div class="right-section">
-            <v-btn class="find-store-btn" href="#" target="_blank">
+            <v-btn class="find-store-btn" href="/contact-us#stores">
                 {{ $t("find_our_store") || "FIND OUR STORE" }}
             </v-btn>
             <div class="signup-box">

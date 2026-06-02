@@ -8,7 +8,6 @@ let Privacy = () => import("../components/static/Privacy.vue");
 let Terms = () => import("../components/static/Terms.vue");
 let Return = () => import("../components/static/Return.vue");
 let Shipping = () => import("../components/static/Shipping.vue");
-let FAQ = () => import("../components/static/FAQ.vue");
 let CustomPage = () => import("../pages/CustomPage.vue");
 
 export default [
@@ -44,9 +43,15 @@ export default [
     },
     {
         path: "/faq",
-        component: FAQ,
+        component: CustomPage,
         name: "FAQ",
-        meta: { requiresAuth: false },
+        meta: { requiresAuth: false, pageSlugOverride: "faq" },
+    },
+    {
+        path: "/contact-us",
+        component: CustomPage,
+        name: "ContactUs",
+        meta: { requiresAuth: false, pageSlugOverride: "contact-us" },
     },
     {
         path: "/",

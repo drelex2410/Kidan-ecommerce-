@@ -267,6 +267,14 @@
                         : '{{ translate('No feature items yet') }}';
                 }
 
+                if (['contact_topic_buttons', 'contact_store_grid', 'faq_list'].includes(type) && !summary) {
+                    const activePanel = card.querySelector(`[data-type-panel="${type}"]`);
+                    const itemCount = activePanel?.querySelectorAll('.feature-item').length || 0;
+                    summary = itemCount
+                        ? `${itemCount} {{ translate('item') }}${itemCount > 1 ? 's' : ''} {{ translate('configured') }}`
+                        : '{{ translate('No items added yet') }}';
+                }
+
                 if (!summary) {
                     summary = '{{ translate('No content summary yet') }}';
                 }
@@ -313,11 +321,19 @@
                     image_gallery: ["title"],
                     spacer: [],
                     journal_editorial: ["title", "content", "image"],
+                    contact_hero_form: ["title", "subtitle", "image"],
+                    contact_topic_buttons: ["title", "subtitle"],
+                    contact_store_grid: ["title"],
+                    faq_list: ["title", "subtitle"],
                 };
                 card.querySelector('.section-card-title').textContent = title;
 
                 card.querySelectorAll('[data-type-panel]').forEach((panel) => {
-                    panel.style.display = panel.getAttribute('data-type-panel') === type ? '' : 'none';
+                    const isActivePanel = panel.getAttribute('data-type-panel') === type;
+                    panel.style.display = isActivePanel ? '' : 'none';
+                    panel.querySelectorAll('input, textarea, select').forEach((field) => {
+                        field.disabled = !isActivePanel;
+                    });
                 });
 
                 const visibleFields = fieldMap[type] || ["title", "subtitle", "content", "button", "image", "image_2"];
@@ -361,6 +377,34 @@
                         <div class="form-group">
                             <label>{{ translate('Item Description') }}</label>
                             <textarea class="form-control" rows="3" name="sections[${sectionIndex}][settings][items][${itemIndex}][description]"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>{{ translate('Meta / Label') }}</label>
+                                    <input type="text" class="form-control" name="sections[${sectionIndex}][settings][items][${itemIndex}][meta]">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>{{ translate('Sub Meta') }}</label>
+                                    <input type="text" class="form-control" name="sections[${sectionIndex}][settings][items][${itemIndex}][submeta]">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>{{ translate('Button Text') }}</label>
+                                    <input type="text" class="form-control" name="sections[${sectionIndex}][settings][items][${itemIndex}][button_text]">
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label>{{ translate('Button Link') }}</label>
+                                    <input type="text" class="form-control" name="sections[${sectionIndex}][settings][items][${itemIndex}][button_link]">
+                                </div>
+                            </div>
                         </div>
                         <div class="form-group mb-0">
                             <label>{{ translate('Icon / Image') }}</label>
@@ -686,18 +730,21 @@
             }
 
             function bindFeatureRepeater(card) {
-                const addButton = card.querySelector('.add-feature-item');
-                if (!addButton) {
+                const addButtons = card.querySelectorAll('.add-feature-item');
+                if (!addButtons.length) {
                     return;
                 }
 
-                addButton.addEventListener('click', function() {
-                    const wrapper = card.querySelector('.feature-items');
+                addButtons.forEach((addButton) => addButton.addEventListener('click', function() {
+                    const wrapper = addButton.closest('[data-type-panel]')?.querySelector('.feature-items');
+                    if (!wrapper) {
+                        return;
+                    }
                     const sectionIndex = card.getAttribute('data-section-index');
                     const itemIndex = nextIndex();
                     wrapper.insertAdjacentHTML('beforeend', buildFeatureItemHtml(sectionIndex, itemIndex));
                     refreshSectionSummary(card);
-                });
+                }));
             }
 
             function bindTabRepeater(card) {

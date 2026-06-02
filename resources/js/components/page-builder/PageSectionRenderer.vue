@@ -17,6 +17,10 @@ import PageCtaBannerSection from "./PageCtaBannerSection.vue";
 import PageEditorialIntroSection from "./PageEditorialIntroSection.vue";
 import PageEditorialQuoteSection from "./PageEditorialQuoteSection.vue";
 import PageHeroSection from "./PageHeroSection.vue";
+import PageContactHeroFormSection from "./PageContactHeroFormSection.vue";
+import PageContactStoreGridSection from "./PageContactStoreGridSection.vue";
+import PageContactTopicsSection from "./PageContactTopicsSection.vue";
+import PageFaqListSection from "./PageFaqListSection.vue";
 import PageImageContentPanelSection from "./PageImageContentPanelSection.vue";
 import PageImageGallerySection from "./PageImageGallerySection.vue";
 import PageImageTextSection from "./PageImageTextSection.vue";
@@ -35,6 +39,10 @@ const EDITORIAL_TYPES = [
   "image_content_panel",
   "vision_mission_split",
   "editorial_quote",
+  "contact_hero_form",
+  "contact_topic_buttons",
+  "contact_store_grid",
+  "faq_list",
 ];
 
 export default {
@@ -47,6 +55,10 @@ export default {
     PageVisionMissionSplitSection,
     PageEditorialQuoteSection,
     PageHeroSection,
+    PageContactHeroFormSection,
+    PageContactTopicsSection,
+    PageContactStoreGridSection,
+    PageFaqListSection,
     PageRichTextSection,
     PageImageTextSection,
     PageMultiColumnFeaturesSection,
@@ -77,6 +89,10 @@ export default {
         vision_mission_split: "PageVisionMissionSplitSection",
         editorial_quote: "PageEditorialQuoteSection",
         hero: "PageHeroSection",
+        contact_hero_form: "PageContactHeroFormSection",
+        contact_topic_buttons: "PageContactTopicsSection",
+        contact_store_grid: "PageContactStoreGridSection",
+        faq_list: "PageFaqListSection",
         rich_text: "PageRichTextSection",
         image_text_split: "PageImageTextSection",
         multi_column_features: "PageMultiColumnFeaturesSection",

@@ -241,11 +241,15 @@ class SettingController extends Controller
      */
     public function env_key_update(Request $request)
     {
-        foreach ($request->types as $key => $type) {
-            if (! $this->storeEnvironmentSetting($type, $request[$type])) {
+        $environmentUpdates = $this->normalizeEnvironmentUpdates($request);
+
+        foreach ($environmentUpdates as $type => $value) {
+            if (! $this->storeEnvironmentSetting($type, $value)) {
                 return $this->settingsWriteErrorResponse();
             }
         }
+
+        cache_clear();
 
         flash(translate("Settings updated successfully"))->success();
         return back();
@@ -848,6 +852,24 @@ class SettingController extends Controller
         }
 
         return $value;
+    }
+
+    protected function normalizeEnvironmentUpdates(Request $request): array
+    {
+        $updates = [];
+
+        foreach ((array) $request->input('types', []) as $type) {
+            $updates[$type] = $request->input($type);
+        }
+
+        if (array_key_exists('MAIL_MAILER', $updates) || array_key_exists('MAIL_DRIVER', $updates)) {
+            $mailer = $updates['MAIL_MAILER'] ?? $updates['MAIL_DRIVER'];
+
+            $updates['MAIL_MAILER'] = $mailer;
+            $updates['MAIL_DRIVER'] = $mailer;
+        }
+
+        return $updates;
     }
 
     protected function settingsWriteErrorResponse()

@@ -52,12 +52,7 @@ class HomeSectionService
 
     private function bannerSectionFour(): array
     {
-        $slots = [
-            ['slot' => 'slide_1', 'default_link' => '/', 'clickable' => true],
-            ['slot' => 'slide_2', 'default_link' => '/', 'clickable' => true],
-            ['slot' => 'slide_3', 'default_link' => '/', 'clickable' => true],
-            ['slot' => 'newsletter', 'default_link' => null, 'clickable' => false],
-        ];
+        $slots = $this->bannerSectionFourSlots('home_banner_4_images');
 
         $current = $this->fixedBannerSection(
             'home_banner_4_images',
@@ -73,10 +68,29 @@ class HomeSectionService
         return $this->fixedBannerSection(
             'home_banner_3_images',
             'home_banner_3_links',
-            $slots,
+            $this->bannerSectionFourSlots('home_banner_3_images'),
             'banner_section_four',
             'home_banner_3_compat'
         );
+    }
+
+    private function bannerSectionFourSlots(string $imagesSettingKey): array
+    {
+        $imageIds = $this->decodeSettingArray(get_setting($imagesSettingKey));
+        $slotCount = max(count($imageIds), 4);
+        $slots = [];
+
+        for ($index = 0; $index < $slotCount; $index++) {
+            if ($index === 3) {
+                $slots[] = ['slot' => 'newsletter', 'default_link' => null, 'clickable' => false];
+                continue;
+            }
+
+            $slidesBeforeNewsletter = $index < 3 ? $index + 1 : $index;
+            $slots[] = ['slot' => 'slide_' . $slidesBeforeNewsletter, 'default_link' => null, 'clickable' => true];
+        }
+
+        return $slots;
     }
 
     private function bannerSectionThree(): array
@@ -249,9 +263,14 @@ class HomeSectionService
         }
 
         $payload = collect($imageIds)->map(function ($imageId, $index) use ($links) {
+            $img = $this->contentMedia->asset($imageId);
+            $link = $this->normalizeBannerLink($links[$index] ?? null, null);
+
             return [
-                'img' => $this->contentMedia->asset($imageId),
-                'link' => $this->normalizeBannerLink($links[$index] ?? null),
+                'img' => $img,
+                'link' => $link,
+                'is_clickable' => $img !== null && $link !== null,
+                'missing_image' => $img === null,
             ];
         })->filter(fn ($banner) => $banner['img'] !== null)->values()->all();
 
@@ -280,15 +299,15 @@ class HomeSectionService
         $payload = collect($slots)->map(function (array $slot, int $index) use ($imageIds, $links) {
             $imageId = $imageIds[$index] ?? null;
             $link = $links[$index] ?? null;
-            $defaultLink = array_key_exists('default_link', $slot) ? $slot['default_link'] : '/';
             $isClickable = (bool) ($slot['clickable'] ?? true);
             $resolvedImage = $this->contentMedia->asset($imageId);
+            $resolvedLink = $isClickable ? $this->normalizeBannerLink($link, null) : null;
 
             return [
                 'slot' => $slot['slot'],
                 'img' => $resolvedImage,
-                'link' => $isClickable ? $this->normalizeBannerLink($link, $defaultLink) : null,
-                'is_clickable' => $isClickable,
+                'link' => $resolvedLink,
+                'is_clickable' => $isClickable && !empty($resolvedImage) && $resolvedLink !== null,
                 'missing_image' => empty($resolvedImage),
             ];
         })->values()->all();
@@ -335,7 +354,7 @@ class HomeSectionService
         return is_array($decoded) ? array_values($decoded) : [];
     }
 
-    private function normalizeBannerLink(mixed $value, ?string $fallback = '/'): ?string
+    private function normalizeBannerLink(mixed $value, ?string $fallback = null): ?string
     {
         if (!is_string($value)) {
             return $fallback;

@@ -1,11 +1,81 @@
 @php
     $sectionData = $sectionData ?? [];
     $index = $index ?? '__INDEX__';
-    $settings = $sectionData['settings'] ?? [];
-    $featureItems = $settings['items'] ?? [];
-    $tabs = $settings['tabs'] ?? [];
-    $bullets = $settings['bullets'] ?? [];
+
+    $stringifySectionValue = function ($value, bool $uploadField = false): string {
+        if ($value === null) {
+            return '';
+        }
+
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        if (is_array($value)) {
+            $values = array_filter($value, fn ($item) => $item !== null && $item !== '');
+
+            if ($uploadField) {
+                return implode(',', array_map(fn ($item) => is_scalar($item) ? (string) $item : '', $values));
+            }
+
+            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '';
+        }
+
+        return '';
+    };
+
+    $normalizeSectionCollection = function ($value) use (&$normalizeSectionCollection, $stringifySectionValue): array {
+        if (!is_array($value)) {
+            return [];
+        }
+
+        return array_map(function ($item) use (&$normalizeSectionCollection, $stringifySectionValue) {
+            if (!is_array($item)) {
+                return $stringifySectionValue($item);
+            }
+
+            $normalized = [];
+            foreach ($item as $key => $childValue) {
+                $normalized[$key] = is_array($childValue)
+                    ? $normalizeSectionCollection($childValue)
+                    : $stringifySectionValue($childValue, in_array($key, ['image', 'image_2', 'gallery_images'], true));
+            }
+
+            return $normalized;
+        }, $value);
+    };
+
+    $settings = is_array($sectionData['settings'] ?? null) ? $sectionData['settings'] : [];
+    $collectionSettingKeys = ['items', 'tabs', 'bullets', 'youtube_urls'];
+    $uploadSettingKeys = ['image', 'image_2', 'gallery_images', 'meta_image'];
+
+    foreach (['title', 'subtitle', 'content', 'button_text', 'button_link', 'image', 'image_2'] as $fieldKey) {
+        if (array_key_exists($fieldKey, $sectionData)) {
+            $sectionData[$fieldKey] = $stringifySectionValue($sectionData[$fieldKey], in_array($fieldKey, ['image', 'image_2'], true));
+        }
+    }
+
+    foreach ($settings as $fieldKey => $fieldValue) {
+        if (in_array($fieldKey, $collectionSettingKeys, true)) {
+            continue;
+        }
+
+        $settings[$fieldKey] = $stringifySectionValue($fieldValue, in_array($fieldKey, $uploadSettingKeys, true));
+    }
+
+    $featureItems = $normalizeSectionCollection($settings['items'] ?? []);
+    $tabs = $normalizeSectionCollection($settings['tabs'] ?? []);
+    $bullets = $normalizeSectionCollection($settings['bullets'] ?? []);
     $journalYoutubeUrls = $settings['youtube_urls'] ?? [''];
+    if (!is_array($journalYoutubeUrls)) {
+        $journalYoutubeUrls = [$stringifySectionValue($journalYoutubeUrls)];
+    } else {
+        $journalYoutubeUrls = array_map(fn ($url) => $stringifySectionValue($url), $journalYoutubeUrls);
+    }
     if (empty($journalYoutubeUrls)) {
         $journalYoutubeUrls = [''];
     }

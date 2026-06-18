@@ -13,10 +13,10 @@
             class="hero-swiper"
         >
             <swiper-slide v-for="(banner, i) in banners" :key="i">
-                <router-link :to="banner.link || '/'" class="hero-slide">
+                <router-link v-if="isClickable(banner)" :to="banner.link" class="hero-slide">
                     <div class="hero-image-wrapper">
-                        <img 
-                            :src="banner.img" 
+                        <img
+                            :src="banner.img"
                             :alt="`Banner ${i + 1}`" 
                             @error="imageFallback($event)"
                             class="hero-image"
@@ -24,6 +24,17 @@
                         <div class="hero-overlay"></div>
                     </div>
                 </router-link>
+                <div v-else class="hero-slide">
+                    <div class="hero-image-wrapper">
+                        <img
+                            :src="banner.img"
+                            :alt="`Banner ${i + 1}`"
+                            @error="imageFallback($event)"
+                            class="hero-image"
+                        />
+                        <div class="hero-overlay"></div>
+                    </div>
+                </div>
             </swiper-slide>
         </swiper>
     </div>
@@ -53,6 +64,18 @@ export default {
             },
         },
     }),
+    methods: {
+        isClickable(banner) {
+            if (!banner?.link) {
+                return false;
+            }
+
+            return banner.is_clickable !== false;
+        },
+        imageFallback(event) {
+            event.target.src = "/assets/img/placeholder.png";
+        }
+    },
     async created() {
         const res = await this.call_api("get", "setting/home/banner_section_one");
         if (res.data.success) {

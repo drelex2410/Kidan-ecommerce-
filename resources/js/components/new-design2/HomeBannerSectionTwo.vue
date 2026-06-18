@@ -18,9 +18,12 @@
                 </div>
                 <div class="hero-text-right">
                     <h1 class="hero-title">{{ productBanner?.title || '' }}</h1>
-                    <router-link :to="productBanner?.link || '/'" class="hero-cta">
+                    <router-link v-if="isClickable(productBanner)" :to="productBanner.link" class="hero-cta">
                         <span>DISCOVER MORE</span>
                     </router-link>
+                    <span v-else class="hero-cta hero-cta-disabled">
+                        <span>DISCOVER MORE</span>
+                    </span>
                 </div>
             </div>
         </div>
@@ -40,6 +43,18 @@ export default {
         },
         productBanner() {
             return this.banners.find((banner) => banner.slot === "product") || null;
+        },
+    },
+    methods: {
+        isClickable(banner) {
+            if (!banner?.link) {
+                return false;
+            }
+
+            return banner.is_clickable !== false;
+        },
+        imageFallback(event) {
+            event.target.src = this.fallbackImage;
         },
     },
     async created() {
@@ -183,6 +198,16 @@ export default {
     background: #FFFBF3;
     color: #000000;
     transform: translateY(-2px);
+}
+
+.hero-cta-disabled,
+.hero-cta-disabled:hover {
+    cursor: default;
+    pointer-events: none;
+    opacity: 0.72;
+    background: transparent;
+    color: #ffffff;
+    transform: none;
 }
 
 @media (max-width: 1200px) {

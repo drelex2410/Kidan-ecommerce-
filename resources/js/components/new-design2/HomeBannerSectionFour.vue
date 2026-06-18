@@ -9,9 +9,12 @@
                 <swiper v-if="swiperBanners.length" :slides-per-view="1" :space-between="0" :loop="true" :autoplay="carouselOption.autoplay"
                     :modules="modules" :pagination="{ clickable: true }" class="main-swiper">
                     <swiper-slide v-for="(banner, i) in swiperBanners" :key="i">
-                        <router-link :to="banner.link || '/'" class="banner-slide">
+                        <router-link v-if="isClickable(banner)" :to="banner.link" class="banner-slide">
                             <img :src="banner.img" :alt="`Banner ${i + 1}`" @error="imageFallback($event)" />
                         </router-link>
+                        <div v-else class="banner-slide">
+                            <img :src="banner.img" :alt="`Banner ${i + 1}`" @error="imageFallback($event)" />
+                        </div>
                     </swiper-slide>
                 </swiper>
 
@@ -143,6 +146,13 @@ export default {
         },
         imageFallback(event) {
             event.target.src = '/assets/img/placeholder.png';
+        },
+        isClickable(banner) {
+            if (!banner?.link) {
+                return false;
+            }
+
+            return banner.is_clickable !== false;
         }
     },
     async created() {

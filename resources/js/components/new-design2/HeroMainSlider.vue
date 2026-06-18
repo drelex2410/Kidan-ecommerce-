@@ -12,7 +12,7 @@
             :pagination="{ clickable: true }" :navigation="true" :loop="true" :modules="modules"
             class="mySwiper main-swiper">
             <swiper-slide v-for="(slider, i) in sliders.one" :key="i">
-              <router-link :to="slider.link || '/'" class="slide-link">
+              <router-link v-if="isClickable(slider)" :to="slider.link" class="slide-link">
                 <div class="slide-content main-slide">
                   <div class="slide-overlay"></div>
                   <img :src="slider.img" alt="Hero Slider" />
@@ -26,6 +26,20 @@
                   </div>
                 </div>
               </router-link>
+              <div v-else class="slide-link">
+                <div class="slide-content main-slide">
+                  <div class="slide-overlay"></div>
+                  <img :src="slider.img" alt="Hero Slider" />
+                  <div class="slide-text-container">
+                    <h1 class="slide-title">
+                      {{ slider.title || '' }}
+                    </h1>
+                    <p class="slide-subtitle">
+                      {{ slider.subtitle || '' }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </swiper-slide>
           </swiper>
         </div>
@@ -59,6 +73,15 @@ export default {
       },
     },
   }),
+  methods: {
+    isClickable(slider) {
+      if (!slider?.link) {
+        return false;
+      }
+
+      return slider.is_clickable !== false;
+    },
+  },
   async created() {
     try {
       const res = await this.call_api("get", "setting/home/sliders");

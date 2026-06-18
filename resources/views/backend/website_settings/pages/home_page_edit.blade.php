@@ -12,6 +12,14 @@
 	$bannerThreeImages = json_decode(get_setting('home_banner_4_images'), true) ?: [];
 	$bannerThreeLinks = json_decode(get_setting('home_banner_4_links'), true) ?: [];
 	$activeSettingsGroup = old('settings_group');
+	$bannerTwoSlotCount = max(count($bannerTwoImages), count($bannerTwoLinks), 2);
+	$bannerThreeMaxSlot = max(count($bannerThreeImages), count($bannerThreeLinks), 4) - 1;
+	$bannerThreeSlideIndexes = [];
+	for ($slotIndex = 0; $slotIndex <= $bannerThreeMaxSlot; $slotIndex++) {
+		if ($slotIndex !== 3) {
+			$bannerThreeSlideIndexes[] = $slotIndex;
+		}
+	}
 @endphp
 <h6 class="fw-600">{{ translate('Home Page Settings') }}</h6>
 <div class="accordion" id="accordionExample">
@@ -245,47 +253,83 @@
 								<input type="hidden" name="types[]" value="home_banner_2_images">
 								<input type="hidden" name="types[]" value="home_banner_2_links">
 
-								<div class="row gutters-10 border-bottom pb-4 mb-4">
-									<div class="col-lg-5">
-										<div class="form-group mb-0">
-											<label class="from-label d-block">{{ translate('Banner 2 Background Image') }}</label>
-											<div class="input-group" data-toggle="aizuploader" data-type="image">
-												<div class="input-group-prepend">
-													<div class="input-group-text bg-soft-secondary font-weight-medium">{{ translate('Browse')}}</div>
+								<div class="home-banner-2-target">
+									@for ($slot = 0; $slot < $bannerTwoSlotCount; $slot++)
+										@php
+											$bannerTwoLabel = $slot === 0
+												? translate('Banner 2 Background Image')
+												: ($slot === 1 ? translate('Banner 2 Product Image') : translate('Banner 2 Additional Slide').' '.($slot + 1));
+											$bannerTwoLinkLabel = $slot === 1 ? translate('Banner 2 Button Link') : translate('Optional Banner Link');
+										@endphp
+										<div class="row gutters-10 border-bottom pb-4 mb-4" data-banner-slot-row>
+											<input type="hidden" name="home_banner_2_images_delete[{{ $slot }}]" class="banner-delete-input" value="0">
+											<input type="hidden" name="home_banner_2_links_delete[{{ $slot }}]" class="banner-delete-input" value="0">
+											<div class="col-lg-5">
+												<div class="form-group mb-0">
+													<label class="from-label d-block">{{ $bannerTwoLabel }}</label>
+													<div class="input-group" data-toggle="aizuploader" data-type="image">
+														<div class="input-group-prepend">
+															<div class="input-group-text bg-soft-secondary font-weight-medium">{{ translate('Browse')}}</div>
+														</div>
+														<div class="form-control file-amount">{{ translate('Choose File') }}</div>
+														<input type="hidden" name="home_banner_2_images[{{ $slot }}]" class="selected-files" value="{{ $bannerTwoImages[$slot] ?? '' }}">
+													</div>
+													<div class="file-preview box sm"></div>
+													@if ($slot === 0)
+														<small class="text-muted d-block mt-2">{{ translate('This image is used as the full-width background. Its saved link is not used on the live homepage.') }}</small>
+													@endif
 												</div>
-												<div class="form-control file-amount">{{ translate('Choose File') }}</div>
-												<input type="hidden" name="home_banner_2_images[0]" class="selected-files" value="{{ $bannerTwoImages[0] ?? '' }}">
 											</div>
-											<div class="file-preview box sm"></div>
-											<input type="hidden" name="home_banner_2_links[0]" value="{{ $bannerTwoLinks[0] ?? '' }}">
-											<small class="text-muted d-block mt-2">{{ translate('This image is used as the full-width background. Its saved link is not used on the live homepage.') }}</small>
-										</div>
-									</div>
-								</div>
-
-								<div class="row gutters-10">
-									<div class="col-lg-5">
-										<div class="form-group mb-0">
-											<label class="from-label d-block">{{ translate('Banner 2 Product Image') }}</label>
-											<div class="input-group" data-toggle="aizuploader" data-type="image">
-												<div class="input-group-prepend">
-													<div class="input-group-text bg-soft-secondary font-weight-medium">{{ translate('Browse')}}</div>
+											<div class="col-lg-6">
+												<div class="form-group mb-0">
+													<label class="from-label d-block">{{ $bannerTwoLinkLabel }}</label>
+													<input type="text" placeholder="" name="home_banner_2_links[{{ $slot }}]" value="{{ $bannerTwoLinks[$slot] ?? '' }}" class="form-control">
+													@if ($slot === 1)
+														<small class="text-muted d-block mt-2">{{ translate('This link is used by the visible "DISCOVER MORE" button in Banner 2. Leave empty to show the banner without a clickable CTA.') }}</small>
+													@endif
 												</div>
-												<div class="form-control file-amount">{{ translate('Choose File') }}</div>
-												<input type="hidden" name="home_banner_2_images[1]" class="selected-files" value="{{ $bannerTwoImages[1] ?? '' }}">
 											</div>
-											<div class="file-preview box sm"></div>
+											<div class="col-auto">
+												<button type="button" class="mt-4 btn btn-icon btn-circle btn-sm btn-soft-danger" data-banner-remove-slot>
+													<i class="las la-times"></i>
+												</button>
+											</div>
 										</div>
-									</div>
-									<div class="col-lg-7">
-										<div class="form-group mb-0">
-											<label class="from-label d-block">{{ translate('Banner 2 Button Link') }}</label>
-											<input type="text" placeholder="" name="home_banner_2_links[1]" value="{{ $bannerTwoLinks[1] ?? '' }}" class="form-control">
-											<small class="text-muted d-block mt-2">{{ translate('This link is used by the visible "DISCOVER MORE" button in Banner 2.') }}</small>
-										</div>
-									</div>
+									@endfor
 								</div>
 								<div class="text-right mt-4">
+									<button
+										type="button"
+										class="btn btn-soft-secondary btn-sm"
+										data-toggle="add-more"
+										data-banner-indexed-target=".home-banner-4-target"
+										data-content='<div class="row gutters-10 border-bottom pb-4 mb-4">
+											<div class="col-lg-5">
+												<div class="form-group mb-0">
+													<label class="from-label d-block">{{ translate('Banner 2 Additional Slide') }}</label>
+													<div class="input-group" data-toggle="aizuploader" data-type="image">
+														<div class="input-group-prepend">
+															<div class="input-group-text bg-soft-secondary font-weight-medium">{{ translate('Browse')}}</div>
+														</div>
+														<div class="form-control file-amount">{{ translate('Choose File') }}</div>
+														<input type="hidden" name="home_banner_2_images[]" class="selected-files">
+													</div>
+													<div class="file-preview box sm"></div>
+												</div>
+											</div>
+											<div class="col-lg-6">
+												<label class="from-label d-block">{{ translate('Optional Banner Link') }}</label>
+												<input type="text" placeholder="" name="home_banner_2_links[]" class="form-control">
+											</div>
+											<div class="col-auto">
+												<button type="button" class="mt-4 btn btn-icon btn-circle btn-sm btn-soft-danger" data-toggle="remove-parent" data-parent=".row">
+													<i class="las la-times"></i>
+												</button>
+											</div>
+										</div>'
+										data-target=".home-banner-2-target">
+										{{ translate('Add Banner 2 Slide') }}
+									</button>
 									<button type="submit" class="btn btn-primary btn-sm">
 										{{ translate('Update Banner 2') }}
 									</button>
@@ -320,70 +364,40 @@
 								<input type="hidden" name="types[]" value="home_banner_4_images">
 								<input type="hidden" name="types[]" value="home_banner_4_links">
 
-								<div class="row gutters-10 border-bottom pb-4 mb-4">
-									<div class="col-lg-5">
-										<div class="form-group mb-0">
-											<label class="from-label d-block">{{ translate('Banner 3 Slide 1 Image') }}</label>
-											<div class="input-group" data-toggle="aizuploader" data-type="image">
-												<div class="input-group-prepend">
-													<div class="input-group-text bg-soft-secondary font-weight-medium">{{ translate('Browse')}}</div>
+								<div class="home-banner-4-target">
+									@foreach ($bannerThreeSlideIndexes as $slot)
+										@php
+											$displaySlideNumber = $slot < 3 ? $slot + 1 : $slot;
+										@endphp
+										<div class="row gutters-10 border-bottom pb-4 mb-4" data-banner-slot-row>
+											<input type="hidden" name="home_banner_4_images_delete[{{ $slot }}]" class="banner-delete-input" value="0">
+											<input type="hidden" name="home_banner_4_links_delete[{{ $slot }}]" class="banner-delete-input" value="0">
+											<div class="col-lg-5">
+												<div class="form-group mb-0">
+													<label class="from-label d-block">{{ translate('Banner 3 Slide') }} {{ $displaySlideNumber }} {{ translate('Image') }}</label>
+													<div class="input-group" data-toggle="aizuploader" data-type="image">
+														<div class="input-group-prepend">
+															<div class="input-group-text bg-soft-secondary font-weight-medium">{{ translate('Browse')}}</div>
+														</div>
+														<div class="form-control file-amount">{{ translate('Choose File') }}</div>
+														<input type="hidden" name="home_banner_4_images[{{ $slot }}]" class="selected-files" value="{{ $bannerThreeImages[$slot] ?? '' }}">
+													</div>
+													<div class="file-preview box sm"></div>
 												</div>
-												<div class="form-control file-amount">{{ translate('Choose File') }}</div>
-												<input type="hidden" name="home_banner_4_images[0]" class="selected-files" value="{{ $bannerThreeImages[0] ?? '' }}">
 											</div>
-											<div class="file-preview box sm"></div>
-										</div>
-									</div>
-									<div class="col-lg-7">
-										<div class="form-group mb-0">
-											<label class="from-label d-block">{{ translate('Banner 3 Slide 1 Link') }}</label>
-											<input type="text" placeholder="" name="home_banner_4_links[0]" value="{{ $bannerThreeLinks[0] ?? '' }}" class="form-control">
-										</div>
-									</div>
-								</div>
-
-								<div class="row gutters-10 border-bottom pb-4 mb-4">
-									<div class="col-lg-5">
-										<div class="form-group mb-0">
-											<label class="from-label d-block">{{ translate('Banner 3 Slide 2 Image') }}</label>
-											<div class="input-group" data-toggle="aizuploader" data-type="image">
-												<div class="input-group-prepend">
-													<div class="input-group-text bg-soft-secondary font-weight-medium">{{ translate('Browse')}}</div>
+											<div class="col-lg-6">
+												<div class="form-group mb-0">
+													<label class="from-label d-block">{{ translate('Banner 3 Slide') }} {{ $displaySlideNumber }} {{ translate('Link') }}</label>
+													<input type="text" placeholder="" name="home_banner_4_links[{{ $slot }}]" value="{{ $bannerThreeLinks[$slot] ?? '' }}" class="form-control">
 												</div>
-												<div class="form-control file-amount">{{ translate('Choose File') }}</div>
-												<input type="hidden" name="home_banner_4_images[1]" class="selected-files" value="{{ $bannerThreeImages[1] ?? '' }}">
 											</div>
-											<div class="file-preview box sm"></div>
-										</div>
-									</div>
-									<div class="col-lg-7">
-										<div class="form-group mb-0">
-											<label class="from-label d-block">{{ translate('Banner 3 Slide 2 Link') }}</label>
-											<input type="text" placeholder="" name="home_banner_4_links[1]" value="{{ $bannerThreeLinks[1] ?? '' }}" class="form-control">
-										</div>
-									</div>
-								</div>
-
-								<div class="row gutters-10 border-bottom pb-4 mb-4">
-									<div class="col-lg-5">
-										<div class="form-group mb-0">
-											<label class="from-label d-block">{{ translate('Banner 3 Slide 3 Image') }}</label>
-											<div class="input-group" data-toggle="aizuploader" data-type="image">
-												<div class="input-group-prepend">
-													<div class="input-group-text bg-soft-secondary font-weight-medium">{{ translate('Browse')}}</div>
-												</div>
-												<div class="form-control file-amount">{{ translate('Choose File') }}</div>
-												<input type="hidden" name="home_banner_4_images[2]" class="selected-files" value="{{ $bannerThreeImages[2] ?? '' }}">
+											<div class="col-auto">
+												<button type="button" class="mt-4 btn btn-icon btn-circle btn-sm btn-soft-danger" data-banner-remove-slot>
+													<i class="las la-times"></i>
+												</button>
 											</div>
-											<div class="file-preview box sm"></div>
 										</div>
-									</div>
-									<div class="col-lg-7">
-										<div class="form-group mb-0">
-											<label class="from-label d-block">{{ translate('Banner 3 Slide 3 Link') }}</label>
-											<input type="text" placeholder="" name="home_banner_4_links[2]" value="{{ $bannerThreeLinks[2] ?? '' }}" class="form-control">
-										</div>
-									</div>
+									@endforeach
 								</div>
 
 								<div class="row gutters-10">
@@ -404,6 +418,37 @@
 									</div>
 								</div>
 								<div class="text-right mt-4">
+									<button
+										type="button"
+										class="btn btn-soft-secondary btn-sm"
+										data-toggle="add-more"
+										data-content='<div class="row gutters-10 border-bottom pb-4 mb-4">
+											<div class="col-lg-5">
+												<div class="form-group mb-0">
+													<label class="from-label d-block">{{ translate('Banner 3 Carousel Slide Image') }}</label>
+													<div class="input-group" data-toggle="aizuploader" data-type="image">
+														<div class="input-group-prepend">
+															<div class="input-group-text bg-soft-secondary font-weight-medium">{{ translate('Browse')}}</div>
+														</div>
+														<div class="form-control file-amount">{{ translate('Choose File') }}</div>
+														<input type="hidden" name="home_banner_4_images[__BANNER_INDEX__]" class="selected-files">
+													</div>
+													<div class="file-preview box sm"></div>
+												</div>
+											</div>
+											<div class="col-lg-6">
+												<label class="from-label d-block">{{ translate('Banner 3 Carousel Slide Link') }}</label>
+												<input type="text" placeholder="" name="home_banner_4_links[__BANNER_INDEX__]" class="form-control">
+											</div>
+											<div class="col-auto">
+												<button type="button" class="mt-4 btn btn-icon btn-circle btn-sm btn-soft-danger" data-toggle="remove-parent" data-parent=".row">
+													<i class="las la-times"></i>
+												</button>
+											</div>
+										</div>'
+										data-target=".home-banner-4-target">
+										{{ translate('Add Banner 3 Slide') }}
+									</button>
 									<button type="submit" class="btn btn-primary btn-sm">
 										{{ translate('Update Banner 3') }}
 									</button>
@@ -1300,4 +1345,46 @@
 	</div>
 
 </div>
+@endsection
+
+@section('script')
+<script>
+	(function ($) {
+		'use strict';
+
+		function nextBannerFourIndex(target) {
+			var maxIndex = 3;
+
+			$(target).find('[name^="home_banner_4_images["], [name^="home_banner_4_links["]').each(function () {
+				var match = this.name.match(/\[(\d+)\]/);
+				if (match) {
+					maxIndex = Math.max(maxIndex, parseInt(match[1], 10));
+				}
+			});
+
+			return maxIndex + 1;
+		}
+
+		$(document).on('click', '[data-banner-remove-slot]', function () {
+			var row = $(this).closest('[data-banner-slot-row]');
+
+			row.find('.banner-delete-input').val('1');
+			row.find('.selected-files').val('');
+			row.find('input[type="text"], input[type="url"]').val('');
+			row.addClass('d-none');
+		});
+
+		$(document).on('click', '[data-banner-indexed-target]', function () {
+			var target = $(this).data('banner-indexed-target');
+
+			window.setTimeout(function () {
+				var nextIndex = nextBannerFourIndex(target);
+
+				$(target).find('[name*="__BANNER_INDEX__"]').each(function () {
+					this.name = this.name.replace('__BANNER_INDEX__', nextIndex);
+				});
+			}, 0);
+		});
+	})(jQuery);
+</script>
 @endsection

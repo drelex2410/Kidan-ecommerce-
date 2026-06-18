@@ -295,7 +295,11 @@ class SettingController extends Controller
                     continue;
                 }
 
-                $storedValue = $this->persistSettingValue($type, $request->input($type));
+                $storedValue = $this->persistSettingValue(
+                    $type,
+                    $request->input($type),
+                    $request->input($type . '_delete', [])
+                );
                 $updatedTypes[] = $type;
                 $this->logHomepageBannerWrite(
                     settingsGroup: (string) $request->input('settings_group', ''),
@@ -332,7 +336,7 @@ class SettingController extends Controller
         return back();
     }
 
-    protected function persistSettingValue(string $type, $value)
+    protected function persistSettingValue(string $type, $value, $deleteMarkers = [])
     {
         $settings = Setting::query()
             ->where('type', $type)
@@ -340,7 +344,7 @@ class SettingController extends Controller
             ->get();
 
         $existingValue = $settings->last()?->value;
-        $storedValue = $this->normalizeSettingValue($type, $value, $existingValue);
+        $storedValue = $this->normalizeSettingValue($type, $value, $existingValue, $deleteMarkers);
 
         if ($settings->isEmpty()) {
             $setting = new Setting;
@@ -366,13 +370,15 @@ class SettingController extends Controller
         return $storedValue;
     }
 
-    protected function normalizeSettingValue(string $type, $value, $existingValue)
+    protected function normalizeSettingValue(string $type, $value, $existingValue, $deleteMarkers = [])
     {
         if (!is_array($value)) {
             return $value;
         }
 
         if (!$this->shouldPreserveSparseArrayEntries($type)) {
+            $value = $this->applyDeleteMarkersToArray($value, $deleteMarkers);
+
             return json_encode($value);
         }
 
@@ -384,7 +390,7 @@ class SettingController extends Controller
             }
         }
 
-        $merged = $this->mergeSparseArrayEntries($value, $existing);
+        $merged = $this->mergeSparseArrayEntries($value, $existing, $deleteMarkers);
 
         return json_encode($merged);
     }
@@ -413,38 +419,28 @@ class SettingController extends Controller
                 linksType: 'home_slider_1_links',
                 imageLabel: 'Hero slider',
                 request: $request,
-                requireAtLeastOneImage: true,
+                requireAtLeastOneImage: false,
             ),
             'home_banner_1' => $this->validateDynamicBannerGroup(
                 imagesType: 'home_banner_1_images',
                 linksType: 'home_banner_1_links',
                 imageLabel: 'Banner 1',
                 request: $request,
-                requireAtLeastOneImage: true,
+                requireAtLeastOneImage: false,
             ),
             'home_banner_2' => $this->validateFixedBannerGroup(
                 imagesType: 'home_banner_2_images',
                 linksType: 'home_banner_2_links',
                 request: $request,
-                requiredSlots: [
-                    0 => 'Banner 2 background image',
-                    1 => 'Banner 2 product image',
-                ],
-                requiredLinks: [
-                    1 => 'Banner 2 button link',
-                ],
+                requiredSlots: [],
+                requiredLinks: [],
                 ignoredLinkSlots: [0],
             ),
             'home_banner_4' => $this->validateFixedBannerGroup(
                 imagesType: 'home_banner_4_images',
                 linksType: 'home_banner_4_links',
                 request: $request,
-                requiredSlots: [
-                    0 => 'Banner 3 slide 1 image',
-                    1 => 'Banner 3 slide 2 image',
-                    2 => 'Banner 3 slide 3 image',
-                    3 => 'Banner 3 newsletter image',
-                ],
+                requiredSlots: [],
                 requiredLinks: [],
                 ignoredLinkSlots: [3],
             ),
@@ -492,8 +488,16 @@ class SettingController extends Controller
         array $ignoredLinkSlots = [],
     ): array {
         $messages = [];
-        $mergedImages = $this->mergedRequestArray($imagesType, $request->input($imagesType, []));
-        $mergedLinks = $this->mergedRequestArray($linksType, $request->input($linksType, []));
+        $mergedImages = $this->mergedRequestArray(
+            $imagesType,
+            $request->input($imagesType, []),
+            $request->input($imagesType . '_delete', [])
+        );
+        $mergedLinks = $this->mergedRequestArray(
+            $linksType,
+            $request->input($linksType, []),
+            $request->input($linksType . '_delete', [])
+        );
 
         foreach ($requiredSlots as $index => $label) {
             $value = $mergedImages[$index] ?? null;
@@ -504,6 +508,14 @@ class SettingController extends Controller
             }
 
             $this->validateUploadIds("{$imagesType}.{$index}", [$value], $messages, $label);
+        }
+
+        foreach ($mergedImages as $index => $value) {
+            if ($value === null || $value === '' || array_key_exists("{$imagesType}.{$index}", $messages)) {
+                continue;
+            }
+
+            $this->validateUploadIds("{$imagesType}.{$index}", [$value], $messages, "Banner image");
         }
 
         foreach ($mergedLinks as $index => $link) {
@@ -534,15 +546,15 @@ class SettingController extends Controller
         return $messages;
     }
 
-    protected function mergedRequestArray(string $type, $submitted): array
+    protected function mergedRequestArray(string $type, $submitted, $deleteMarkers = []): array
     {
         $submittedArray = $this->normalizeSubmittedArray($submitted);
 
         if (!$this->shouldPreserveSparseArrayEntries($type)) {
-            return $submittedArray;
+            return $this->applyDeleteMarkersToArray($submittedArray, $deleteMarkers);
         }
 
-        return $this->mergeSparseArrayEntries($submittedArray, $this->existingSettingArray($type));
+        return $this->mergeSparseArrayEntries($submittedArray, $this->existingSettingArray($type), $deleteMarkers);
     }
 
     protected function existingSettingArray(string $type): array
@@ -579,17 +591,57 @@ class SettingController extends Controller
         }, $value);
     }
 
-    protected function mergeSparseArrayEntries(array $submitted, array $existing): array
+    protected function mergeSparseArrayEntries(array $submitted, array $existing, $deleteMarkers = []): array
     {
+        $deleteMarkers = $this->normalizeDeleteMarkers($deleteMarkers);
         $merged = $submitted;
+        $maxIndex = max(array_keys($submitted + $existing + $deleteMarkers) ?: [-1]);
 
-        foreach ($merged as $index => $submittedValue) {
+        for ($index = 0; $index <= $maxIndex; $index++) {
+            if (($deleteMarkers[$index] ?? false) === true) {
+                $merged[$index] = null;
+                continue;
+            }
+
+            $submittedValue = $merged[$index] ?? null;
             if (($submittedValue === null || $submittedValue === '') && array_key_exists($index, $existing)) {
                 $merged[$index] = $existing[$index];
             }
         }
 
         return $merged;
+    }
+
+    protected function applyDeleteMarkersToArray(array $submitted, $deleteMarkers = []): array
+    {
+        $deleteMarkers = $this->normalizeDeleteMarkers($deleteMarkers);
+
+        if ($deleteMarkers === []) {
+            return $submitted;
+        }
+
+        foreach ($deleteMarkers as $index => $shouldDelete) {
+            if ($shouldDelete) {
+                unset($submitted[$index]);
+            }
+        }
+
+        return array_values($submitted);
+    }
+
+    protected function normalizeDeleteMarkers($deleteMarkers): array
+    {
+        if (!is_array($deleteMarkers)) {
+            return [];
+        }
+
+        $normalized = [];
+
+        foreach ($deleteMarkers as $index => $value) {
+            $normalized[(int) $index] = in_array($value, [true, 1, '1', 'on', 'true'], true);
+        }
+
+        return $normalized;
     }
 
     protected function validateUploadIds(string $field, array $uploadIds, array &$messages, string $label): void
